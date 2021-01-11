@@ -57,6 +57,10 @@ public class Chart {
 
     }
 
+    protected Chart(){
+
+    }
+
     /* HELPERS TO PRETTIFY CHARTS */
 
     public Chart black() {
@@ -115,11 +119,11 @@ public class Chart {
     public void render() {
         view.shoot();
     }
-    
+
 	public void setAnimated(boolean status) {
 		getQuality().setAnimated(status);
 
-		
+
 		if(getCanvas() instanceof IScreenCanvas) {
 			IScreenCanvas screenCanvas =  (IScreenCanvas)getCanvas();
 
@@ -318,7 +322,7 @@ public class Chart {
     public Scale getScale() {
         return new Scale(view.getBounds().getZmin(), view.getBounds().getZmax());
     }
-    
+
     public IPainter getPainter() {
     	return getView().getPainter();
     }
