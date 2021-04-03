@@ -9,8 +9,16 @@
 	<packaging>pom</packaging>
 
 	<name>Jzy3d Master Project</name>
-	<url>http://www.jzy3d.org</url>
 	<description>A java API to draw 3d charts.</description>
+	<url>http://www.jzy3d.org</url>
+
+	<licenses>
+		<license>
+			<name>The (New) BSD License</name>
+			<url>http://www.opensource.org/licenses/bsd-license.php</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
 
 	<developers>
 		<developer>
@@ -32,22 +40,6 @@
 			<name>Jacob Filik</name>
 		</developer>
 	</developers>
-
-	<licenses>
-		<license>
-			<name>The (New) BSD License</name>
-			<url>http://www.opensource.org/licenses/bsd-license.php</url>
-			<distribution>repo</distribution>
-		</license>
-	</licenses>
-	<scm>
-		<connection>scm:git:https://github.com/jzy3d/jzy3d-api</connection>
-	</scm>
-
-	<issueManagement>
-		<system>Github</system>
-		<url>https://github.com/jzy3d/jzy3d-api/issues</url>
-	</issueManagement>
 
 	<modules>
 
@@ -80,16 +72,37 @@
 		<module>jzy3d-io-xls</module>
 		<module>jzy3d-io-reports</module>
 
-<<<<<<< HEAD
 		<module>jzy3d-tests-java9</module>
-
-=======
->>>>>>> [Build] Format POMs, remove empty elements and update xsi:schemaLocation
 	</modules>
+
+	<scm>
+		<connection>scm:git:https://github.com/jzy3d/jzy3d-api</connection>
+	</scm>
+	<issueManagement>
+		<system>Github</system>
+		<url>https://github.com/jzy3d/jzy3d-api/issues</url>
+	</issueManagement>
+
+	<!-- Used to deploy to Jzy3d repository -->
+	<distributionManagement>
+		<repository>
+			<id>jzy3d-ftp</id>
+			<name>Jzy3d Maven Folder</name>
+			<url>ftp://ftp.cluster013.ovh.net/maven/releases</url>
+		</repository>
+		<snapshotRepository>
+			<id>jzy3d-ftp</id>
+			<name>Jzy3d Maven Folder SNAPSHOTS</name>
+			<url>ftp://ftp.cluster013.ovh.net/maven/snapshots</url>
+		</snapshotRepository>
+	</distributionManagement>
+
+	<!--<distributionManagement> <snapshotRepository> <id>ossrh</id> <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+		</snapshotRepository> <repository> <id>ossrh</id> <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+		</repository> </distributionManagement> -->
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<version.jzy3d>${project.version}</version.jzy3d>
 		<version.java.source>1.8</version.java.source>
 		<version.java.target>1.8</version.java.target>
 		<version.mvn.compiler>3.0</version.mvn.compiler>
@@ -115,24 +128,6 @@
 		</dependency>
 
 	</dependencies>
-
-	<!-- Used to deploy to Jzy3d repository -->
-	<distributionManagement>
-		<repository>
-			<id>jzy3d-ftp</id>
-			<name>Jzy3d Maven Folder</name>
-			<url>ftp://ftp.cluster013.ovh.net/maven/releases</url>
-		</repository>
-		<snapshotRepository>
-			<id>jzy3d-ftp</id>
-			<name>Jzy3d Maven Folder SNAPSHOTS</name>
-			<url>ftp://ftp.cluster013.ovh.net/maven/snapshots</url>
-		</snapshotRepository>
-	</distributionManagement>
-
-	<!--<distributionManagement> <snapshotRepository> <id>ossrh</id> <url>https://oss.sonatype.org/content/repositories/snapshots</url> 
-		</snapshotRepository> <repository> <id>ossrh</id> <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url> 
-		</repository> </distributionManagement> -->
 
 	<!--To retrieve Jzy3d dependencies -->
 	<repositories>
@@ -176,13 +171,13 @@
 					<includes>
 						<include>**/Test*.java</include>
 						<include>**/*Test.java</include>
-						<!-- ITTest* are integration tests that should be run by failsafe (below) 
-							but failsafe run is failing so may trigger ITTest using surefire. But as 
-							ITTest fail when ran from another computer than mine (e.g. Github Workflow, 
-							which is most probably due to thin differences between Github GPU and my 
-							MacBook GPU we desactivate ITTest from base profile and will need to create 
-							a dedicated profiles to run them. Note that it may usefull to have the ability 
-							to have difference baseline image for macos/window/linux in case JVM difference 
+						<!-- ITTest* are integration tests that should be run by failsafe (below)
+							but failsafe run is failing so may trigger ITTest using surefire. But as
+							ITTest fail when ran from another computer than mine (e.g. Github Workflow,
+							which is most probably due to thin differences between Github GPU and my
+							MacBook GPU we desactivate ITTest from base profile and will need to create
+							a dedicated profiles to run them. Note that it may usefull to have the ability
+							to have difference baseline image for macos/window/linux in case JVM difference
 							make jGL text rendering be different somehow. <include>**/ITTest*.java</include> -->
 					</includes>
 				</configuration>
@@ -190,16 +185,16 @@
 
 			<!-- CONFIGURATION FOR RUNNING INTEGRATION TESTS -->
 
-			<!-- Use failsafe to run (and skip) integration tests which success may 
-				depend on GPU. Skip them with mvn install -DskipITs Replace in surefire <include>**/ITTest*.java</include> 
-				<plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-failsafe-plugin</artifactId> 
-				<version>3.0.0-M5</version> <executions> <execution> <id>integration-test</id> 
-				<goals> <goal>integration-test</goal> <goal>verify</goal> </goals> </execution> 
+			<!-- Use failsafe to run (and skip) integration tests which success may
+				depend on GPU. Skip them with mvn install -DskipITs Replace in surefire <include>**/ITTest*.java</include>
+				<plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-failsafe-plugin</artifactId>
+				<version>3.0.0-M5</version> <executions> <execution> <id>integration-test</id>
+				<goals> <goal>integration-test</goal> <goal>verify</goal> </goals> </execution>
 				</executions> </plugin> -->
 
 
-			<!--SKIP deploy configuration <plugin> <groupId>org.apache.maven.plugins</groupId> 
-				<artifactId>maven-deploy-plugin</artifactId> <version>${version.mvn.deploy}</version> 
+			<!--SKIP deploy configuration <plugin> <groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-deploy-plugin</artifactId> <version>${version.mvn.deploy}</version>
 				<configuration> <skip>true</skip> </configuration> </plugin> -->
 
 			<!-- SOURCE JAR -->
@@ -264,16 +259,16 @@
 				<version>${version.mvn.release}</version>
 			</plugin>
 
-			<!--<plugin> <groupId>org.sonatype.plugins</groupId> <artifactId>nexus-staging-maven-plugin</artifactId> 
-				<version>1.6.7</version> <extensions>true</extensions> <configuration> <serverId>ossrh</serverId> 
-				<nexusUrl>https://oss.sonatype.org/</nexusUrl> <autoReleaseAfterClose>true</autoReleaseAfterClose> 
-				TO BE COMMENTED <skipStagingRepositoryClose>true</skipStagingRepositoryClose> 
+			<!--<plugin> <groupId>org.sonatype.plugins</groupId> <artifactId>nexus-staging-maven-plugin</artifactId>
+				<version>1.6.7</version> <extensions>true</extensions> <configuration> <serverId>ossrh</serverId>
+				<nexusUrl>https://oss.sonatype.org/</nexusUrl> <autoReleaseAfterClose>true</autoReleaseAfterClose>
+				TO BE COMMENTED <skipStagingRepositoryClose>true</skipStagingRepositoryClose>
 				</configuration> </plugin> -->
 
 			<!-- To sign artigact while deploying to Maven central via Sonatype -->
 
-			<!--<plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-gpg-plugin</artifactId> 
-				<version>1.5</version> <executions> <execution> <id>sign-artifacts</id> <phase>deploy</phase> 
+			<!--<plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-gpg-plugin</artifactId>
+				<version>1.5</version> <executions> <execution> <id>sign-artifacts</id> <phase>deploy</phase>
 				<goals> <goal>sign</goal> </goals> </execution> </executions> </plugin> -->
 
 			<plugin>
@@ -287,9 +282,9 @@
 			</plugin>
 
 
-			<!-- display active profile in compile phase <plugin> <groupId>org.apache.maven.plugins</groupId> 
-				<artifactId>maven-help-plugin</artifactId> <version>3.1.0</version> <executions> 
-				<execution> <id>show-profiles</id> <phase>compile</phase> <goals> <goal>active-profiles</goal> 
+			<!-- display active profile in compile phase <plugin> <groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-help-plugin</artifactId> <version>3.1.0</version> <executions>
+				<execution> <id>show-profiles</id> <phase>compile</phase> <goals> <goal>active-profiles</goal>
 				</goals> </execution> </executions> </plugin> -->
 		</plugins>
 
@@ -304,21 +299,9 @@
 		</extensions>
 	</build>
 
-	<profiles>
-		<profile>
-			<id>disable-java8-doclint</id>
-			<activation>
-				<jdk>[1.8,)</jdk>
-			</activation>
-			<properties>
-				<additionalparam>-Xdoclint:none</additionalparam>
-			</properties>
-		</profile>
-	</profiles>
-
-	<!-- Get coverage with mvn cobertura:cobertura -->
 	<reporting>
 		<plugins>
+			<!-- Get coverage with mvn cobertura:cobertura -->
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>cobertura-maven-plugin</artifactId>
@@ -334,4 +317,17 @@
 		</plugins>
 	</reporting>
 
+	<profiles>
+
+		<profile>
+			<id>disable-java8-doclint</id>
+			<activation>
+				<jdk>[1.8,)</jdk>
+			</activation>
+			<properties>
+				<additionalparam>-Xdoclint:none</additionalparam>
+			</properties>
+		</profile>
+
+	</profiles>
 </project>
