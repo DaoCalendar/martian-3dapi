@@ -249,7 +249,7 @@ public class Camera extends AbstractViewportManager {
   }
 
   /**
-   * Return true if the given (not scaled) point is on the left of the plane build by the
+   * Return true if the given (not scaled) point is on the left of the plane built by the
    * eye->target and up-direction vector, else false.
    *
    * @param point not scaled point (its values correspond to a point in the scene)
