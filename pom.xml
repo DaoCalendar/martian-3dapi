@@ -370,16 +370,6 @@
 				</configuration>
 			</plugin>
 
-			<!-- CONFIGURATION FOR RUNNING INTEGRATION TESTS -->
-
-			<!-- Use failsafe to run (and skip) integration tests which success may
-				depend on GPU. Skip them with mvn install -DskipITs Replace in surefire <include>**/ITTest*.java</include>
-				<plugin> <groupId>org.apache.maven.plugins</groupId> <artifactId>maven-failsafe-plugin</artifactId>
-				<version>3.0.0-M5</version> <executions> <execution> <id>integration-test</id>
-				<goals> <goal>integration-test</goal> <goal>verify</goal> </goals> </execution>
-				</executions> </plugin> -->
-
-
 			<!-- SOURCE JAR -->
 
 			<plugin>
@@ -517,6 +507,8 @@
 			</properties>
 		</profile>
 
+
+		<!-- CONFIGURATION FOR RUNNING INTEGRATION TESTS -->
 
 		<profile>
 			<id>integration-tests</id>
