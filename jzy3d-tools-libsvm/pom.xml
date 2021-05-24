@@ -14,7 +14,7 @@
 	<name>Jzy3d LibSVM</name>
 
 	<dependencies>
-
+		
 		<dependency>
 			<groupId>net.sf.opencsv</groupId>
 			<artifactId>opencsv</artifactId>
