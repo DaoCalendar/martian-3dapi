@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import org.jzy3d.maths.Coord2d;
+import org.jzy3d.maths.Dimension;
 import org.jzy3d.painters.IPainter;
 import org.jzy3d.plot3d.rendering.view.Camera;
 import org.jzy3d.plot3d.rendering.view.View;
@@ -19,7 +20,12 @@ import org.jzy3d.plot3d.rendering.view.View;
  * @author Martin Pernollet
  */
 public interface ICanvas {
-  
+  /**
+   * Return true if the canvas renders GL with GPU, false if renders GL using CPU executed Java
+   * code.
+   */
+  public boolean isNative();
+
   /** Returns a reference to the held view. */
   public View getView();
 
@@ -28,7 +34,10 @@ public interface ICanvas {
 
   /** Returns the renderer's height, i.e. the display height. */
   public int getRendererHeight();
+  
+  public Dimension getDimension();
 
+  // Only defined for Native (JOGL) canvas
   // public Renderer3d getRenderer();
 
   public void screenshot(File file) throws IOException;
@@ -98,22 +107,34 @@ public interface ICanvas {
    * 
    */
   public void setPixelScale(float[] scale);
+  
+  default void setPixelScale(Coord2d scale) {
+    setPixelScale(scale.toArray());
+  }
 
   /**
    * Provide pixel scale as feasible by the Hardware, OS, and JVM, independently of what was asked
    * by {@link #setPixelScale(float[])}. Hence the two functions may not be consistent together.
    */
   public Coord2d getPixelScale();
-  
+
+
+  /**
+   * Provide pixel scale as considered feasible by the JVM.
+   */
+  public Coord2d getPixelScaleJVM();
+
   public double getLastRenderingTimeMs();
-  
+
   public static final double LAST_RENDER_TIME_UNDEFINED = -1;
 
-  
+
   public void addCanvasListener(ICanvasListener listener);
+
   public void removeCanvasListener(ICanvasListener listener);
+
   public List<ICanvasListener> getCanvasListeners();
-  
+
   /**
    * Temporary way of enabling/disabling a thread watching pixel scale change of a native canvas.
    * 
@@ -121,5 +142,7 @@ public interface ICanvas {
    */
   @Deprecated
   public static boolean ALLOW_WATCH_PIXEL_SCALE = true;
+  
+
 
 }

@@ -18,6 +18,24 @@ public class Vector3d {
     this.z2 = z2;
   }
 
+  public Vector3d(float x2, float y2, float z2) {
+    this.x1 = 0;
+    this.x2 = x2;
+    this.y1 = 0;
+    this.y2 = y2;
+    this.z1 = 0;
+    this.z2 = z2;
+  }
+
+  public Vector3d(double x2, double y2, double z2) {
+    this.x1 = 0;
+    this.x2 = (float)x2;
+    this.y1 = 0;
+    this.y2 = (float)y2;
+    this.z1 = 0;
+    this.z2 = (float)z2;
+  }
+
   /** Create a vector, described by two coordinates. */
   public Vector3d(Coord3d p1, Coord3d p2) {
     x1 = p1.x;
@@ -28,25 +46,44 @@ public class Vector3d {
     z2 = p2.z;
   }
 
+  public Vector3d( Coord3d p2) {
+    x1 = 0;
+    x2 = p2.x;
+    y1 = 0;
+    y2 = p2.y;
+    z1 = 0;
+    z2 = p2.z;
+  }
+
   /***********************************************************/
 
+  public Coord3d coord2() {
+    return new Coord3d(x2, y2, z2);
+  }
+
+  public Coord3d coord1() {
+    return new Coord3d(x1, y1, z1);
+  }
+  
+  public Coord3d[] coords() {
+    Coord3d[] c = {coord1(), coord2()};
+    return c;
+  }
+
+  
   /** Return the vector induced by this set of coordinates. */
   public Coord3d vector() {
     return new Coord3d(x2 - x1, y2 - y1, z2 - z1);
   }
 
   /**
-   * Compute the dot product between and current and given vector.
+   * Compute the dot product (a.k.a scalar product) between the current and given vector.
    * 
-   * Reminnd that the dot product is:
-   * <ul>
-   * <li>0 if vectors are perpendicular
-   * <li>
-   * <li>
-   * </ul>
+   * Remind that the dot product is 0 if vectors are perpendicular
    * 
    * @param v input vector
    * @return the dot product
+   * @see https://en.wikipedia.org/wiki/Dot_product
    */
   public float dot(Vector3d v) {
     Coord3d v1 = vector();
@@ -57,6 +94,10 @@ public class Vector3d {
   /**
    * Computes the vectorial product of the current and the given vector. The result is a vector
    * defined as a Coord3d, that is perpendicular to the plan induced by current vector and vector V.
+   * 
+   * <img src="doc-files/cross-product.png"/>
+   * 
+   * @see https://en.wikipedia.org/wiki/Cross_product
    */
   public Coord3d cross(Vector3d v) {
     Coord3d v1 = this.vector();

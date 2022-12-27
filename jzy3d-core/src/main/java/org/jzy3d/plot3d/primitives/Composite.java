@@ -25,10 +25,48 @@ import org.jzy3d.plot3d.transform.space.SpaceTransformer;
  * @author Martin Pernollet
  *
  */
-public class Composite extends Wireframeable implements ISingleColorable, IMultiColorable {
+public class Composite extends Wireframeable implements ISingleColorable, IMultiColorable, IGLBindedResource  {
   public Composite() {
     super();
     components = new ArrayList<Drawable>();
+  }
+  
+  public Composite(List<Drawable> drawables) {
+    this();
+    add(drawables);
+  }
+
+  public Composite(Drawable... drawables) {
+    this();
+    add(drawables);
+  }
+
+  /**
+   * This indicate to a scene graph if the Composite consider it is worth being decomposed or not.
+   * 
+   * @return will return true only if the Composite has face displayed (simply because decomposing wireframe-only drawable is useless)
+   */
+  public boolean canDecompose() {
+    return isFaceDisplayed();
+  }
+  
+  @Override
+  public void mount(IPainter painter) {
+    if(!hasMountedOnce) {
+      for (Drawable c : components) {
+        if (c instanceof IGLBindedResource) {
+          ((IGLBindedResource)c).mount(painter);
+        }
+      }
+      hasMountedOnce = true;
+    }
+  }
+  
+  protected boolean hasMountedOnce = false;
+
+  @Override
+  public boolean hasMountedOnce() {
+    return hasMountedOnce;
   }
 
   /****************************************************************/
@@ -40,6 +78,15 @@ public class Composite extends Wireframeable implements ISingleColorable, IMulti
     }
   }
 
+  public void add(Drawable[] drawables) {
+    synchronized (components) {
+      for(Drawable d: drawables) {
+        components.add(d);
+      }
+    }
+  }
+
+  
   /** Clear the list of Drawables from this composite. */
   public void clear() {
     synchronized (components) {
@@ -106,6 +153,10 @@ public class Composite extends Wireframeable implements ISingleColorable, IMulti
   public void setTransform(Transform transform) {
     this.transform = transform;
 
+    if(!canDecompose())
+      return;
+    
+    
     synchronized (components) {
       for (Drawable c : components) {
         if (c != null)
@@ -117,6 +168,9 @@ public class Composite extends Wireframeable implements ISingleColorable, IMulti
   @Override
   public void setTransformBefore(Transform transform) {
     this.transformBefore = transform;
+    
+    if(!canDecompose())
+      return;
 
     synchronized (components) {
       for (Drawable c : components) {
@@ -273,6 +327,8 @@ public class Composite extends Wireframeable implements ISingleColorable, IMulti
    */
   @Override
   public void setPolygonOffsetFillEnable(boolean polygonOffsetFillEnable) {
+    //super.setPolygonOffsetFillEnable(polygonOffsetFillEnable);
+    
     if (components != null) {
       synchronized (components) {
 
@@ -289,6 +345,8 @@ public class Composite extends Wireframeable implements ISingleColorable, IMulti
 
   @Override
   public void setPolygonWireframeDepthTrick(boolean polygonOffsetFillEnable) {
+    //super.setPolygonWireframeDepthTrick(polygonOffsetFillEnable);
+    
     if (components != null) {
       synchronized (components) {
 
@@ -302,8 +360,104 @@ public class Composite extends Wireframeable implements ISingleColorable, IMulti
       }
     }
   }
+  
+  @Override
+  public void setReflectLight(boolean reflectLight) {
+    super.setReflectLight(reflectLight);
+    
+    if (components != null) {
+      synchronized (components) {
+        for (Drawable d : components) {
+          if (d instanceof Wireframeable) {
+            ((Wireframeable) d).setReflectLight(reflectLight);
+          } else if (d instanceof Composite) {
+            ((Composite) d).setReflectLight(reflectLight);
+          }
+        }
+      }
+    }
+  }
 
+  public void setMaterialAmbiantReflection(Color materialAmbiantReflection) {
+    this.materialAmbiantReflection = materialAmbiantReflection;
+    
+    if (components != null) {
+      synchronized (components) {
+        for (Drawable d : components) {
+          if (d instanceof Wireframeable) {
+            ((Wireframeable) d).setMaterialAmbiantReflection(materialAmbiantReflection);
+          } else if (d instanceof Composite) {
+            ((Composite) d).setMaterialAmbiantReflection(materialAmbiantReflection);
+          }
+        }
+      }
+    }
+  }
 
+  public void setMaterialDiffuseReflection(Color materialDiffuseReflection) {
+    this.materialDiffuseReflection = materialDiffuseReflection;
+    
+    if (components != null) {
+      synchronized (components) {
+        for (Drawable d : components) {
+          if (d instanceof Wireframeable) {
+            ((Wireframeable) d).setMaterialDiffuseReflection(materialDiffuseReflection);
+          } else if (d instanceof Composite) {
+            ((Composite) d).setMaterialDiffuseReflection(materialDiffuseReflection);
+          }
+        }
+      }
+    }
+  }
+
+  public void setMaterialSpecularReflection(Color materialSpecularReflection) {
+    this.materialSpecularReflection = materialSpecularReflection;
+    
+    if (components != null) {
+      synchronized (components) {
+        for (Drawable d : components) {
+          if (d instanceof Wireframeable) {
+            ((Wireframeable) d).setMaterialSpecularReflection(materialSpecularReflection);
+          } else if (d instanceof Composite) {
+            ((Composite) d).setMaterialSpecularReflection(materialSpecularReflection);
+          }
+        }
+      }
+    }
+  }
+
+  public void setMaterialEmission(Color materialEmission) {
+    this.materialEmission = materialEmission;
+    
+    if (components != null) {
+      synchronized (components) {
+        for (Drawable d : components) {
+          if (d instanceof Wireframeable) {
+            ((Wireframeable) d).setMaterialEmission(materialEmission);
+          } else if (d instanceof Composite) {
+            ((Composite) d).setMaterialEmission(materialEmission);
+          }
+        }
+      }
+    }
+  }
+
+  public void setMaterialShininess(float shininess) {
+    materialShininess[0] = shininess;
+    
+    if (components != null) {
+      synchronized (components) {
+        for (Drawable d : components) {
+          if (d instanceof Wireframeable) {
+            ((Wireframeable) d).setMaterialShininess(shininess);
+          } else if (d instanceof Composite) {
+            ((Composite) d).setMaterialShininess(shininess);
+          }
+        }
+      }
+    }
+  }
+  
   /****************************************************************/
 
   @Override
@@ -400,4 +554,5 @@ public class Composite extends Wireframeable implements ISingleColorable, IMulti
   protected ColorMapper mapper;
   protected Color color;
   protected boolean detailedToString = false;
+  
 }

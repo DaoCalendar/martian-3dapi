@@ -6,13 +6,14 @@ import org.jzy3d.chart.controllers.ControllerType;
 import org.jzy3d.chart.controllers.mouse.camera.ICameraMouseController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
 import org.jzy3d.maths.Coord2d;
+import org.jzy3d.plot3d.rendering.view.lod.LODPerf;
 
 
 public abstract class AbstractCameraController extends AbstractController
     implements ICameraMouseController {
 
   protected CameraThreadController threadController;
-  protected Coord2d prevMouse = Coord2d.ORIGIN;
+  protected LODPerf perf;
 
   
   public AbstractCameraController() {
@@ -50,8 +51,7 @@ public abstract class AbstractCameraController extends AbstractController
   }
 
   protected void rotate(final Coord2d move, boolean updateView) {
-    for (Chart c : targets)
-      c.getView().rotate(move, updateView);
+    getChart().getView().rotate(move, updateView);
     fireControllerEvent(ControllerType.ROTATE, move);
   }
 
@@ -60,8 +60,7 @@ public abstract class AbstractCameraController extends AbstractController
   }
 
   protected void shift(final float factor, boolean updateView) {
-    for (Chart c : targets)
-      c.getView().shift(factor, updateView);
+    getChart().getView().shift(factor, updateView);
     fireControllerEvent(ControllerType.SHIFT, factor);
   }
 
@@ -70,8 +69,7 @@ public abstract class AbstractCameraController extends AbstractController
   }
 
   protected void zoomX(final float factor, boolean updateView) {
-    for (Chart c : targets)
-      c.getView().zoomX(factor, updateView);
+    getChart().getView().zoomX(factor, updateView);
     fireControllerEvent(ControllerType.ZOOM, factor);
   }
 
@@ -80,8 +78,7 @@ public abstract class AbstractCameraController extends AbstractController
   }
 
   protected void zoomY(final float factor, boolean updateView) {
-    for (Chart c : targets)
-      c.getView().zoomY(factor, updateView);
+    getChart().getView().zoomY(factor, updateView);
     fireControllerEvent(ControllerType.ZOOM, factor);
   }
 
@@ -90,8 +87,7 @@ public abstract class AbstractCameraController extends AbstractController
   }
 
   protected void zoomZ(final float factor, boolean updateView) {
-    for (Chart c : targets)
-      c.getView().zoomZ(factor, updateView);
+    getChart().getView().zoomZ(factor, updateView);
     fireControllerEvent(ControllerType.ZOOM, factor);
   }
 
@@ -137,4 +133,15 @@ public abstract class AbstractCameraController extends AbstractController
       threadController.start();
     }
   }
+  
+  @Override
+  public void setLODPerf(LODPerf perf) {
+    this.perf = perf;
+  }
+
+  @Override
+  public LODPerf getLODPerf() {
+    return perf;
+  }
+
 }

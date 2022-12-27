@@ -7,10 +7,16 @@ import org.jzy3d.plot3d.rendering.canvas.ICanvas;
  * 
  * It is define by a width and height, and support an X and Y offset
  * 
- * @see http://www.opengl.org/sdk/docs/man/xhtml/glViewport.xml
+ * @see https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glViewport.xhtml
  * @author Martin Pernollet
  */
 public class ViewportConfiguration {
+  protected int width;
+  protected int height;
+  protected int x;
+  protected int y;
+  protected ViewportMode mode;
+
   public ViewportConfiguration(int width, int height) {
     this.width = width;
     this.height = height;
@@ -78,12 +84,17 @@ public class ViewportConfiguration {
 
   @Override
   public String toString() {
-    return "(ViewPort) width=" + width + " height=" + height + " x=" + x + " y=" + y;
+    return "width=" + width + " height=" + height + " x=" + x + " y=" + y + " mode=" + mode;
   }
-
-  protected int width;
-  protected int height;
-  protected int x;
-  protected int y;
-  protected ViewportMode mode;
+  
+  public ViewportConfiguration clone() {
+    ViewportConfiguration vc = new ViewportConfiguration(x, y, width, height);
+    vc.setMode(mode);
+    return vc;
+  }
+  
+  public int[] toArray() {
+    int[] a = {x, y, width, height};
+    return a;
+  }
 }

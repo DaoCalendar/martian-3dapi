@@ -1,9 +1,11 @@
 package org.jzy3d.maths;
 
 import java.io.Serializable;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A {@link Coord3d} stores a 3 dimensional coordinate for cartesian or polar mode, and provide few
@@ -31,6 +33,12 @@ public class Coord3d implements Serializable {
 
   public static List<Coord3d> list(Coord3d... coords) {
     return Arrays.asList(coords);
+  }
+
+  public static Coord3d[] array(Set<Coord3d> coords) {
+    Coord3d[] candidates = new Coord3d[coords.size()];
+    coords.toArray(candidates);
+    return candidates;
   }
 
   public static Range getZRange(List<Coord3d> coords) {
@@ -69,6 +77,18 @@ public class Coord3d implements Serializable {
     y = yi;
     z = zi;
   }
+  
+  public Coord3d(float xi, float yi) {
+    x = xi;
+    y = yi;
+    z = 0;
+  }
+  
+  public Coord3d(Coord3d c) {
+    x = c.x;
+    y = c.y;
+    z = c.z;
+  }
 
   public Coord3d(Coord2d c, float zi) {
     x = c.x;
@@ -92,6 +112,12 @@ public class Coord3d implements Serializable {
     z = c[2];
   }
 
+  public Coord3d(double[] c) {
+    x = (float)c[0];
+    y = (float)c[1];
+    z = (float)c[2];
+  }
+
   /**
    * Create a 3d coordinate. When using polar mode, x is azimuth, y is elevation, and z is range.
    */
@@ -99,6 +125,12 @@ public class Coord3d implements Serializable {
     x = (float) xi;
     y = (float) yi;
     z = (float) zi;
+  }
+
+  public Coord3d(double xi, double yi) {
+    x = (float) xi;
+    y = (float) yi;
+    z = 0;
   }
 
   public Coord3d set(Coord3d c2) {
@@ -142,6 +174,10 @@ public class Coord3d implements Serializable {
     return new Coord3d(this.x + x, this.y + y, this.z + z);
   }
 
+  public Coord3d add(double x, double y, double z) {
+    return add((float)x, (float)y, (float)z);
+  }
+  
   public Coord3d addSelf(Coord3d c2) {
     x += c2.x;
     y += c2.y;
@@ -236,10 +272,26 @@ public class Coord3d implements Serializable {
     return new Coord3d(x * value, y * value, z * value);
   }
 
+  public Coord3d mul(double value) {
+    return mul((float)value);
+  }
+  
   public void mulSelf(Coord3d c2) {
     x *= c2.x;
     y *= c2.y;
     z *= c2.z;
+  }
+
+  public void mulSelf(float x, float y, float z) {
+    this.x *= x;
+    this.y *= y;
+    this.z *= z;
+  }
+  
+  public void mulSelf(float value) {
+    this.x *= value;
+    this.y *= value;
+    this.z *= value;
   }
 
   /**
@@ -264,6 +316,11 @@ public class Coord3d implements Serializable {
     z /= value;
   }
 
+  public void divSelf(double value) {
+    x /= value;
+    y /= value;
+    z /= value;
+  }
   
   /**
    * Divise all components of the current Coord by the same value and return the result in a new
@@ -413,10 +470,26 @@ public class Coord3d implements Serializable {
     return this;
   }
 
+  /**
+   * Compute the dot product (a.k.a scalar product) between the current and given vector.
+   * 
+   * Remind that the dot product is 0 if vectors are perpendicular
+   * 
+   * @param v input vector
+   * @see https://en.wikipedia.org/wiki/Dot_product
+   */
   public final float dot(Coord3d v) {
     return x * v.x + y * v.y + z * v.z;
   }
 
+  /**
+   * Computes the vectorial product of the current and the given vector. 
+   * 
+   * The result is a vector defined as a Coord3d, that is perpendicular to the plan induced by current vector and vector V.
+   * 
+   * @param v input vector
+   * @see https://en.wikipedia.org/wiki/Cross_product
+   */
   public final Coord3d cross(Coord3d v) {
     return new Coord3d(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
   }
@@ -459,6 +532,12 @@ public class Coord3d implements Serializable {
   public float[] toArray() {
     float[] array = {x, y, z};
     return array;
+  }
+  
+  public void toArray(float[] array, int offset) {
+    array[offset+0] = x;
+    array[offset+1] = y;
+    array[offset+2] = z;
   }
 
   /**************************************************************/
@@ -616,5 +695,36 @@ public class Coord3d implements Serializable {
     }
     return clone;
   }
+  
+  public static List<Coord3d> getCoords(double[] array) {
+    List<Coord3d> c = new ArrayList<>(array.length/3);
+
+    for (int j = 0; j < array.length; j+=3) {
+      c.add(getCoordAt(array, j));
+    }
+    return c;
+  }
+  
+  public static Coord3d getCoordAt(double[] array, int i) {
+    return new Coord3d(array[i], array[i+1], array[i+2]);
+  }
+  
+  public static List<Coord3d> getCoords(float[] array) {
+    List<Coord3d> c = new ArrayList<>(array.length/3);
+
+    for (int j = 0; j < array.length; j+=3) {
+      c.add(getCoordAt(array, j));
+    }
+    return c;
+  }
+  
+  public static Coord3d getCoordAt(float[] array, int i) {
+    return new Coord3d(array[i], array[i+1], array[i+2]);
+  }
+
+  public boolean isValid() {
+    return Float.isFinite(x) && Float.isFinite(y) && Float.isFinite(z);
+  }
+
 
 }

@@ -32,7 +32,7 @@ public abstract class gl_object {
 
   /**
    * If true, will notify of any OpenGL error according to the configuration of
-   * {@link gl_object#exception}
+   * {@link gl_object#throwExceptionOnGLError}
    */
   protected final boolean debug = true;
   /**
@@ -40,7 +40,7 @@ public abstract class gl_object {
    * to System.err.println(). In case {@link gl_object#debug} is set to false, all OpenGL errors are
    * muted.
    */
-  protected final boolean exception = true;
+  protected boolean throwExceptionOnGLError = true;
 
   public static final float IDENTITY[] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
 
@@ -122,39 +122,9 @@ public abstract class gl_object {
   public void gl_error(int error, String s) {
 
     if (debug) {
-      StringBuffer sb = new StringBuffer();
-      sb.append("jGL Error (");
+      StringBuffer sb = errorCodeToString("jGL Error (", error, "): " + s);
 
-      switch (error) {
-        case GL.GL_NO_ERROR:
-          sb.append("GL_NO_ERROR");
-          break;
-        case GL.GL_INVALID_VALUE:
-          sb.append("GL_INVALID_VALUE");
-          break;
-        case GL.GL_INVALID_ENUM:
-          sb.append("GL_INVALID_ENUM");
-          break;
-        case GL.GL_INVALID_OPERATION:
-          sb.append("GL_INVALID_OPERATION");
-          break;
-        case GL.GL_STACK_OVERFLOW:
-          sb.append("GL_STACK_OVERFLOW");
-          break;
-        case GL.GL_STACK_UNDERFLOW:
-          sb.append("GL_STACK_UNDERFLOW");
-          break;
-        case GL.GL_OUT_OF_MEMORY:
-          sb.append("GL_OUT_OF_MEMORY");
-          break;
-        default:
-          sb.append("unknown");
-          break;
-      }
-      // System.out.println("): " + s);
-      sb.append("): " + s);
-
-      if (exception) {
+      if (throwExceptionOnGLError) {
         throw new RuntimeException(sb.toString());
       } else {
         System.err.println(sb.toString());
@@ -164,6 +134,50 @@ public abstract class gl_object {
       ErrorValue = error;
     }
   }
+
+  public static StringBuffer errorCodeToString(String prefix, int error, String suffix) {
+    StringBuffer sb = new StringBuffer();
+    sb.append(prefix);
+
+    switch (error) {
+      case GL.GL_NO_ERROR:
+        sb.append("GL_NO_ERROR");
+        break;
+      case GL.GL_INVALID_VALUE:
+        sb.append("GL_INVALID_VALUE");
+        break;
+      case GL.GL_INVALID_ENUM:
+        sb.append("GL_INVALID_ENUM");
+        break;
+      case GL.GL_INVALID_OPERATION:
+        sb.append("GL_INVALID_OPERATION");
+        break;
+      case GL.GL_STACK_OVERFLOW:
+        sb.append("GL_STACK_OVERFLOW");
+        break;
+      case GL.GL_STACK_UNDERFLOW:
+        sb.append("GL_STACK_UNDERFLOW");
+        break;
+      case GL.GL_OUT_OF_MEMORY:
+        sb.append("GL_OUT_OF_MEMORY");
+        break;
+      default:
+        sb.append("unknown");
+        break;
+    }
+    // System.out.println("): " + s);
+    sb.append(suffix);
+    return sb;
+  }
+  
+  public void setThrowExceptionOnGLError(boolean status) {
+    this.throwExceptionOnGLError = status;
+  }
+
+  public boolean getThrowExceptionOnGLError() {
+    return throwExceptionOnGLError;
+  }
+
 
   public void gl_eval_coord_1(float u) {
     gl_eval_map1 map;

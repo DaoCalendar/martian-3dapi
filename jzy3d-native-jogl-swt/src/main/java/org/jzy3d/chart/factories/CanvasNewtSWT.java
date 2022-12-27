@@ -10,9 +10,13 @@ import java.util.concurrent.TimeUnit;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.widgets.Composite;
+import org.jzy3d.awt.AWTHelper;
 import org.jzy3d.chart.IAnimator;
 import org.jzy3d.maths.Coord2d;
+import org.jzy3d.maths.Dimension;
+import org.jzy3d.painters.IPainter;
 import org.jzy3d.painters.NativeDesktopPainter;
+import org.jzy3d.plot3d.GPUInfo;
 import org.jzy3d.plot3d.rendering.canvas.ICanvasListener;
 import org.jzy3d.plot3d.rendering.canvas.INativeCanvas;
 import org.jzy3d.plot3d.rendering.canvas.IScreenCanvas;
@@ -112,8 +116,7 @@ public class CanvasNewtSWT extends Composite implements IScreenCanvas, INativeCa
 
 
   private Renderer3d newRenderer(IChartFactory factory, boolean traceGL, boolean debugGL) {
-    return ((NativePainterFactory) factory.getPainterFactory()).newRenderer3D(view, traceGL,
-        debugGL);
+    return ((NativePainterFactory) factory.getPainterFactory()).newRenderer3D(view);
   }
 
   private float[] newPixelScaleIdentity() {
@@ -150,14 +153,23 @@ public class CanvasNewtSWT extends Composite implements IScreenCanvas, INativeCa
     return new Coord2d(getPixelScaleX(), getPixelScaleY());
   }
 
-
+  @Override
+  public Coord2d getPixelScaleJVM() {
+    return getPixelScale();
+  }
+  
   public double getPixelScaleX() {
-    return window.getSurfaceWidth() / (double) getSize().x;
+    float[] scale = new float[2];
+    window.getCurrentSurfaceScale(scale);
+    return scale[0];
   }
 
   public double getPixelScaleY() {
-    return window.getSurfaceHeight() / (double) getSize().y;
+    float[] scale = new float[2];
+    window.getCurrentSurfaceScale(scale);
+    return scale[1];
   }
+  
   public GLWindow getWindow() {
     return window;
   }
@@ -191,22 +203,22 @@ public class CanvasNewtSWT extends Composite implements IScreenCanvas, INativeCa
   @Override
   public void screenshot(File file) throws IOException {
     if (!file.getParentFile().exists())
-      file.mkdirs();
-
+      file.getParentFile().mkdirs();
     TextureData screen = screenshot();
     TextureIO.write(screen, file);
   }
-
+  
   @Override
   public String getDebugInfo() {
-    GL gl = ((NativeDesktopPainter) getView().getPainter()).getCurrentGL(this);
-
-    StringBuilder sb = new StringBuilder();
-    sb.append("Chosen GLCapabilities: " + window.getChosenGLCapabilities() + "\n");
-    sb.append("GL_VENDOR: " + gl.glGetString(GL.GL_VENDOR) + "\n");
-    sb.append("GL_RENDERER: " + gl.glGetString(GL.GL_RENDERER) + "\n");
-    sb.append("GL_VERSION: " + gl.glGetString(GL.GL_VERSION) + "\n");
-    return sb.toString();
+    IPainter painter = getView().getPainter();
+    
+    GLCapabilitiesImmutable caps = window.getChosenGLCapabilities();
+    
+    GL gl = (GL) painter.acquireGL();
+    GPUInfo info = GPUInfo.load(gl);
+    painter.releaseGL();
+    
+    return "Capabilities  : " + caps + "\n" + info.toString();
   }
 
   /**
@@ -226,6 +238,17 @@ public class CanvasNewtSWT extends Composite implements IScreenCanvas, INativeCa
   public int getRendererHeight() {
     return (renderer != null ? renderer.getHeight() : 0);
   }
+  
+  @Override
+  public Dimension getDimension() {
+    if(renderer!=null) {
+      return new Dimension(renderer.getWidth(), renderer.getHeight());
+    }
+    else {
+      return new Dimension(0, 0);
+    }
+  }
+
 
   @Override
   public Renderer3d getRenderer() {
@@ -296,6 +319,11 @@ public class CanvasNewtSWT extends Composite implements IScreenCanvas, INativeCa
     for (ICanvasListener listener : canvasListeners) {
       listener.pixelScaleChanged(pixelScaleX, pixelScaleY);
     }
+  }
+  
+  @Override
+  public boolean isNative() {
+    return true;
   }
 
 }

@@ -4,10 +4,14 @@ import org.jzy3d.colors.Color;
 import org.jzy3d.maths.BoundingBox3d;
 import org.jzy3d.maths.Coord2d;
 import org.jzy3d.maths.Coord3d;
+import org.jzy3d.painters.Font;
 import org.jzy3d.painters.IPainter;
-import org.jzy3d.plot3d.primitives.axis.layout.IAxisLayout;
+import org.jzy3d.plot3d.primitives.axis.layout.AxisLayout;
 import org.jzy3d.plot3d.primitives.axis.layout.LabelOrientation;
 import org.jzy3d.plot3d.rendering.view.Camera;
+import org.jzy3d.plot3d.rendering.view.View;
+import org.jzy3d.plot3d.rendering.view.View2DLayout;
+import org.jzy3d.plot3d.rendering.view.View2DProcessing;
 import org.jzy3d.plot3d.text.align.Horizontal;
 import org.jzy3d.plot3d.text.align.Vertical;
 
@@ -19,14 +23,19 @@ import org.jzy3d.plot3d.text.align.Vertical;
  */
 public class AxisTickProcessor {
   protected AxisBox axis;
-  protected IAxisLayout layout;
+  protected AxisLayout layout;
   protected AxisLabelProcessor labels;
 
-  public AxisTickProcessor(AxisBox axis) {
-    this.axis = axis;
-    this.layout = axis.getLayout();
-    this.labels = axis.labels;
+  protected View2DProcessing view2D;
+
+  public AxisTickProcessor() {
   }
+
+  public AxisTickProcessor(AxisBox axis) {
+    setAxis(axis);
+  }
+
+  
 
   public BoundingBox3d drawTicks(IPainter painter, int axis, int dimension, Color color) {
     return drawTicks(painter, axis, dimension, color, null, null);
@@ -37,9 +46,11 @@ public class AxisTickProcessor {
       Horizontal hal, Vertical val) {
     int quad_0;
     int quad_1;
-    float tickLength = 20.0f; // with respect to range
-    float axeLabelDist = 2.5f;
+
     BoundingBox3d ticksTxtBounds = new BoundingBox3d();
+    
+    // Distance of tick to axis
+    float tickLength = getTickLength3D_OrComputeTickLength2D(painter, dimension);    
 
     // Retrieve the quads that intersect and create the selected axe
     if (this.axis.isX(dimension)) {
@@ -52,7 +63,7 @@ public class AxisTickProcessor {
       quad_0 = this.axis.axeZquads[axis][0];
       quad_1 = this.axis.axeZquads[axis][1];
     }
-
+    
     // --------------------------------------------------------------
     // Computes POSition of ticks lying on the selected axe (i.e. 1st point of the tick line)
 
@@ -71,15 +82,18 @@ public class AxisTickProcessor {
 
     String axisLabel = labels.axisLabel(dimension);
     float rotation = labels.axisLabelRotation(painter, dimension, info.axisSegment);
-    Coord3d labelPosition = labels.axisLabelPosition(dimension, tickLength, axeLabelDist, pos, dir);
-
+    Coord3d labelPosition = labels.axisLabelPosition(dimension, tickLength, pos, dir);
 
     // --------------------------------------------------------------
     // Verify if needs a left/right offset to avoid covering tick labels
+    // which makes no sense for 2D rendering since axis label placement is thought
+    // to avoid covering labels
 
     Coord2d offset2D = null;
 
-    if (layout.isAxisLabelOffsetAuto()) {
+    if (layout.isAxisLabelOffsetAuto() && !this.axis.getView().is2D()) {
+      
+      // Z DIMENSION
       if (this.axis.isZ(dimension)) {
         if (LabelOrientation.VERTICAL.equals(layout.getZAxisLabelOrientation())) {
           offset2D = labels.axisLabelOffsetVertical(painter, info, labelPosition,
@@ -88,11 +102,17 @@ public class AxisTickProcessor {
           offset2D = labels.axisLabelOffset(painter, info, labelPosition,
               layout.getAxisLabelOffsetMargin());
         }
-      } else if (this.axis.isX(dimension)
+      } 
+      
+      // X DIMENSION
+      else if (this.axis.isX(dimension)
           && !LabelOrientation.HORIZONTAL.equals(layout.getXAxisLabelOrientation())) {
         offset2D =
             labels.axisLabelOffset(painter, info, labelPosition, layout.getAxisLabelOffsetMargin());
-      } else if (this.axis.isY(dimension)
+      } 
+      
+      // Y DIMENSION
+      else if (this.axis.isY(dimension)
           && !LabelOrientation.HORIZONTAL.equals(layout.getYAxisLabelOrientation())) {
         offset2D =
             labels.axisLabelOffset(painter, info, labelPosition, layout.getAxisLabelOffsetMargin());
@@ -109,6 +129,94 @@ public class AxisTickProcessor {
         rotation, offset2D);
 
     return ticksTxtBounds;
+  }
+
+  /**
+   * Compute tick length, returned as a ratio of the scene bounds.
+   */
+  protected float getTickLength3D_OrComputeTickLength2D(IPainter painter, int dimension) {
+    View view = axis.getView();//painter.getView();
+
+    // -------------------------------------------------------
+    // Process tick length for the particular 2D case
+    
+    if(view != null && view.is2D()) {
+
+      View2DProcessing processing2D = view.get2DProcessing();
+      Coord2d modelToScreen = processing2D.getModelToScreen();
+      
+      float fontHeight = processing2D.getTickTextHeight();
+      float horizontalTickLen = (processing2D.getHorizontalTickDistance() + fontHeight) * modelToScreen.y;
+      float verticalTickLen = processing2D.getVerticalTickDistance() * modelToScreen.x;
+
+      
+      if(view.is2D_XY()) {
+        // -------------------------------
+        // Distance of X tick labels to tick axis
+        // according to Y range, canvas height and font height
+        
+        if (this.axis.isX(dimension)) {
+          return this.axis.getBounds().getYRange().getRange()/horizontalTickLen;
+        }
+        
+        // -------------------------------
+        // Distance of Y tick labels to tick axis
+        // according to X range, canvas width and font width
+        
+        else if (this.axis.isY(dimension)) {
+          return this.axis.getBounds().getXRange().getRange()/verticalTickLen;
+        }
+      
+      } else if(view.is2D_XZ()) {
+
+        // -------------------------------
+        // Distance of X tick labels to tick axis
+        // according to Z range, canvas height and font height
+        
+        if (this.axis.isX(dimension)) {
+          return this.axis.getBounds().getZRange().getRange()/horizontalTickLen;
+        }
+        
+        // -------------------------------
+        // Distance of Z tick labels to tick axis
+        // according to X range, canvas width and font width
+        
+        else if (this.axis.isZ(dimension)) {
+          return this.axis.getBounds().getXRange().getRange()/verticalTickLen;
+        }
+
+      } else if(view.is2D_YZ()) {
+
+        // -------------------------------
+        // Distance of X tick labels to tick axis
+        // according to Z range, canvas height and font height
+        
+        if (this.axis.isY(dimension)) {
+          return this.axis.getBounds().getZRange().getRange()/horizontalTickLen;
+        }
+        
+        // -------------------------------
+        // Distance of Z tick labels to tick axis
+        // according to X range, canvas width and font width
+        
+        else if (this.axis.isZ(dimension)) {
+          return this.axis.getBounds().getYRange().getRange()/verticalTickLen;
+        }
+
+      }
+
+
+      return Float.NaN;
+
+    }
+    
+    // -------------------------------------------------------
+    // 3D case, tick length given as a ratio of scene bounds
+    
+    else {
+      return this.layout.getTickLengthRatio();
+    }
+    
   }
 
   public AxisRenderingInfo drawAxisTicks(IPainter painter, int dimension, Color color,
@@ -139,8 +247,6 @@ public class AxisTickProcessor {
     info.tickLabels = new String[ticks.length];
     info.tickLabelPositions = new Coord3d[ticks.length];
 
-    // Coord3d[] axisSegment = new Coord3d[2];
-
     for (int t = 0; t < ticks.length; t++) {
       // Shift the tick vector along the selected axis
       // and set the tick length
@@ -152,7 +258,7 @@ public class AxisTickProcessor {
           xlab = xpos;
           ylab = (axis.yrange / tickLength) * ydir + ypos;
           zlab = (axis.zrange / tickLength) * zdir + zpos;
-
+          
           // Tick label
           tickLabel = layout.getXTickRenderer().format(ticks[t]);
 
@@ -335,5 +441,17 @@ public class AxisTickProcessor {
     zdir = zdir == 0 ? 0 : zdir / Math.abs(zdir);
 
     return new Coord3d(xdir, ydir, zdir);
+  }
+  
+  ////////////////////////////
+  
+  public void setAxis(AxisBox axis) {
+    this.axis = axis;
+    this.layout = axis.getLayout();
+    this.labels = axis.labels;
+  }
+  
+  public AxisBox getAxis() {
+    return axis;
   }
 }

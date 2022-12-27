@@ -3,19 +3,20 @@ package org.jzy3d.tests.integration;
 import org.junit.Test;
 import org.jzy3d.chart.Chart;
 import org.jzy3d.plot3d.rendering.view.HiDPI;
-import org.jzy3d.utils.LoggerUtils;
 
 public class ITTest_Surface extends ITTest{
-  @Test
-  public void whenSurfaceChart_ThenMatchBaselineImagePixelwise() {
-    LoggerUtils.minimal();
-
-    whenSurfaceChart_ThenMatchBaselineImagePixelwise(WT.EmulGL_AWT, HiDPI.ON);
-    whenSurfaceChart_ThenMatchBaselineImagePixelwise(WT.EmulGL_AWT, HiDPI.OFF);
-    whenSurfaceChart_ThenMatchBaselineImagePixelwise(WT.Native_AWT, HiDPI.OFF);
+  public static void main(String[] args) {
+    open(new ITTest_Surface().whenSurfaceChart_ThenMatchBaselineImagePixelwise(WT.EmulGL_AWT, HiDPI.ON));
   }
 
-  private void whenSurfaceChart_ThenMatchBaselineImagePixelwise(WT wt, HiDPI hidpi) {
+  @Test
+  public void whenSurfaceChart_ThenMatchBaselineImagePixelwise() {
+    System.out.println("ITTest : whenSurfaceChart_ThenMatchBaselineImagePixelwise");
+
+    forEach((toolkit, resolution) -> whenSurfaceChart_ThenMatchBaselineImagePixelwise(toolkit, resolution));
+  }
+
+  private Chart whenSurfaceChart_ThenMatchBaselineImagePixelwise(WT wt, HiDPI hidpi) {
     // Given
     Chart chart = chart(wt, hidpi);
 
@@ -24,6 +25,8 @@ public class ITTest_Surface extends ITTest{
 
     // Then
     assertChart(chart, name(this, wt, chart.getQuality().getHiDPI()));
+    
+    return chart;
   }
 
 

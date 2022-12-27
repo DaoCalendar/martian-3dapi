@@ -13,9 +13,18 @@ import org.jzy3d.plot3d.rendering.view.ViewportConfiguration;
 import org.jzy3d.plot3d.rendering.view.ViewportMode;
 import org.jzy3d.plot3d.rendering.view.layout.IViewportLayout;
 
+@Deprecated
 public class ViewAndLegendLayout implements IViewportLayout {
   protected float screenSeparator = 1.0f;
   protected boolean hasMeta = true;
+  
+  protected Rectangle zone1 = new Rectangle(0, 0, 0, 0);
+  protected Rectangle zone2 = new Rectangle(0, 0, 0, 0);
+  protected ViewportConfiguration sceneViewPort;
+  protected ViewportConfiguration backgroundViewPort;
+
+  protected Chart chart;
+  
 
   @Override
   public void update(Chart chart) {
@@ -32,8 +41,7 @@ public class ViewAndLegendLayout implements IViewportLayout {
     if (hasMeta) {
       int minwidth = 0;
       for (ILegend data : list) {
-        minwidth += data.getMinimumSize().width;
-        break;
+        minwidth += data.getMinimumDimension().width;
       }
       screenSeparator =
           ((float) (canvas.getRendererWidth() - minwidth)) / ((float) canvas.getRendererWidth());
@@ -45,15 +53,16 @@ public class ViewAndLegendLayout implements IViewportLayout {
   @Override
   public void render(IPainter painter, Chart chart) {
     View view = chart.getView();
+
     view.renderBackground(backgroundViewPort);
+    
     view.renderScene(sceneViewPort);
+    
     List<ILegend> legends = chart.getScene().getGraph().getLegends();
     if (hasMeta)
       renderLegends(painter, screenSeparator, 1.0f, legends, chart.getCanvas());
 
     view.renderOverlay(view.getCamera().getLastViewPort());
-
-    // showLayout((AWTView)view);
   }
 
   protected void renderLegends(IPainter painter, float left, float right, List<ILegend> data,
@@ -64,20 +73,4 @@ public class ViewAndLegendLayout implements IViewportLayout {
       legend.render(painter);
     }
   }
-
-  /*
-   * public void showLayout(AWTView view) { AWTRenderer2d layoutBorder = new AWTRenderer2d() {
-   * 
-   * @Override public void paint(Graphics g, int canvasWidth, int canvasHeight) { if (pencil ==
-   * null) pencil = new CanvasAWT((Graphics2D) g); if (zone1.width > 0) pencil.drawRect(null,
-   * zone1.x, zone1.y, zone1.width, zone1.height, true); if (zone2.width > 0) pencil.drawRect(null,
-   * zone2.x, zone2.y, zone2.width, zone2.height, true); }
-   * 
-   * CanvasAWT pencil = null; }; view.addRenderer2d(layoutBorder); }
-   */
-
-  protected Rectangle zone1 = new Rectangle(0, 0, 0, 0);
-  protected Rectangle zone2 = new Rectangle(0, 0, 0, 0);
-  protected ViewportConfiguration sceneViewPort;
-  protected ViewportConfiguration backgroundViewPort;
 }

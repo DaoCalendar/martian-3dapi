@@ -79,12 +79,16 @@ public class TestCoord3d {
   @Test
   public void equals() {
     Assert.assertTrue(new Coord3d(1, 2, 3).equals(new Coord3d(1, 2, 3)));
+    
     Assert.assertFalse(new Coord3d(1, 2, 3).equals(new Coord3d(2, 1, 3)));
 
     Assert.assertTrue(new Coord3d(-0, 2, 3).equals(new Coord3d(0, 2, 3)));
+    
     Assert.assertTrue(new Coord3d(Float.NaN, 2, 3).equals(new Coord3d(Float.NaN, 2, 3)));
+    
     Assert.assertTrue(new Coord3d(Float.POSITIVE_INFINITY, 2, 3)
         .equals(new Coord3d(Float.POSITIVE_INFINITY, 2, 3)));
+    
     Assert.assertTrue(new Coord3d(Float.NEGATIVE_INFINITY, 2, 3)
         .equals(new Coord3d(Float.NEGATIVE_INFINITY, 2, 3)));
 
@@ -93,4 +97,30 @@ public class TestCoord3d {
   }
   
   
+  @Test
+  public void dot() {
+    // sample
+    Coord3d v1 = new Coord3d(1,3,-5);
+    Coord3d v2 = new Coord3d(4,-2,-1);
+    
+    Assert.assertEquals(3, v1.dot(v2), 0.00000001);
+    
+    // perpendicular
+    v1 = new Coord3d(1, 0, 0);
+    v2 = new Coord3d(0, 1, 0);
+    
+    Assert.assertEquals(0, v1.dot(v2), 0.00000001);
+
+
+  }
+  
+  @Test
+  public void testValid() throws Exception {
+    Assert.assertFalse(new Coord3d(0,0,Float.NaN).isValid());
+    Assert.assertFalse(new Coord3d(0,Float.POSITIVE_INFINITY, 0).isValid());
+    Assert.assertFalse(new Coord3d(Float.NEGATIVE_INFINITY, 0, 0).isValid());
+    Assert.assertTrue(Coord3d.ORIGIN.isValid());
+  
+  }
+
 }

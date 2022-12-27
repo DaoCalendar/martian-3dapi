@@ -12,9 +12,9 @@ import org.jzy3d.painters.Font;
 import org.jzy3d.painters.IPainter;
 import org.jzy3d.plot3d.text.align.Horizontal;
 import org.jzy3d.plot3d.text.align.Vertical;
-import org.jzy3d.plot3d.text.renderers.TextBitmapRenderer;
+import org.jzy3d.plot3d.text.renderers.TextRenderer;
 
-public class MockTextBitmapRenderer extends TextBitmapRenderer {
+public class MockTextBitmapRenderer extends TextRenderer {
   List<Map<String, Object>> callArguments = new ArrayList<>();
 
   @Override
@@ -29,6 +29,7 @@ public class MockTextBitmapRenderer extends TextBitmapRenderer {
     args.put("screenOffset", screenOffset);
     args.put("sceneOffset", sceneOffset);
 
+    //System.out.println("MockTextBitmapRenderer.drawText : " + text + " at " + position);
 
     callArguments.add(args);
 

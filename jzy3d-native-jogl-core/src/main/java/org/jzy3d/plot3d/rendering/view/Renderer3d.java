@@ -7,17 +7,18 @@ import org.jzy3d.plot3d.rendering.canvas.ICanvas;
 import org.jzy3d.plot3d.rendering.scene.Scene;
 import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLContext;
 import com.jogamp.opengl.GLEventListener;
 import com.jogamp.opengl.GLPipelineFactory;
 import com.jogamp.opengl.util.GLReadBufferUtil;
 import com.jogamp.opengl.util.texture.TextureData;
 
 /**
- * The {@link Renderer3d} object is a {@link GLEventListener}, that makes openGL calls necessary to
- * initialize and render a {@link Scene} for an {@link ICanvas}.
+ * The {@link Renderer3d} is a {@link GLEventListener} that handles init, display, reshape and
+ * screenshots of a {@link Scene} in a {@link ICanvas}.
  * 
- * One can activate OpenGl errors in console by setting debugGL to true in the constructor One can
- * activate OpenGl feedback in console by setting traceGL to true in the constructor
+ * One can activate OpenGl errors in console by setting debugGL to true in the constructor. One can
+ * activate OpenGl feedback in console by setting traceGL to true in the constructor.
  * 
  * @author Martin Pernollet
  */
@@ -25,11 +26,13 @@ public class Renderer3d implements GLEventListener {
   protected View view;
   protected int width = 0;
   protected int height = 0;
+
   protected boolean doScreenshotAtNextDisplay = false;
   protected TextureData image = null;
+
   protected boolean traceGL = false;
   protected boolean debugGL = false;
-  
+
   protected TicToc profileDisplayTimer = new TicToc();
   protected double lastRenderingTimeMs;
 
@@ -62,16 +65,17 @@ public class Renderer3d implements GLEventListener {
    */
   @Override
   public void init(GLAutoDrawable canvas) {
-    if (canvas != null && canvas.getGL() != null && canvas.getGL().getGL2() != null
-        && view != null) {
+    if (canvas != null && canvas.getGL() != null && view != null) {
+
+      GLContext context = canvas.getGL().getContext();
+      
       if (debugGL)
-        canvas.getGL().getContext()
-            .setGL(GLPipelineFactory.create("com.jogamp.opengl.Debug", null, canvas.getGL(), null));
+        context.setGL(GLPipelineFactory.create("com.jogamp.opengl.Debug", null, canvas.getGL(), null));
       if (traceGL)
-        canvas.getGL().getContext().setGL(GLPipelineFactory.create("com.jogamp.opengl.Trace", null,
-            canvas.getGL(), new Object[] {System.err}));
+        context.setGL(GLPipelineFactory.create("com.jogamp.opengl.Trace", null, canvas.getGL(), new Object[] {System.err}));
 
       updatePainterWithGL(canvas);
+
       view.init();
     }
   }
@@ -84,26 +88,26 @@ public class Renderer3d implements GLEventListener {
   public void display(GLAutoDrawable canvas) {
     profileDisplayTimer.tic();
 
-    GL gl = canvas.getGL();
-
-    updatePainterWithGL(canvas);
-
     if (view != null) {
-      view.clear();
-      view.render();
+      if(canvas!=null && canvas.getGL()!=null) {
+  
+        updatePainterWithGL(canvas);
+  
+        if (view != null) {
+          view.clear();
+          view.render();
+  
+          exportImageIfRequired(canvas.getGL());
 
-      if (doScreenshotAtNextDisplay) {
-        GLReadBufferUtil screenshot = new GLReadBufferUtil(false, false);
-        screenshot.readPixels(gl, true);
-        image = screenshot.getTextureData();
-        doScreenshotAtNextDisplay = false;
+          renderScreenshotIfRequired(canvas.getGL());
+        }
       }
     }
-    
+
     profileDisplayTimer.toc();
     lastRenderingTimeMs = profileDisplayTimer.elapsedMilisecond();
-
   }
+  
 
   /** Called when the {@link GLAutoDrawable} is resized. */
   @Override
@@ -132,15 +136,25 @@ public class Renderer3d implements GLEventListener {
    * @param canvas
    */
   protected void updatePainterWithGL(GLAutoDrawable canvas) {
-    ((NativeDesktopPainter) view.getPainter()).setGL(canvas.getGL());
+    NativeDesktopPainter painter = ((NativeDesktopPainter) view.getPainter());
+    painter.setGL(canvas.getGL());
   }
-
-  // protected boolean first = true;
 
   @Override
   public void dispose(GLAutoDrawable arg0) {
-    view = null;
+    // do not loose reference to view since the init/display/dispose may be called
+    // several time during the lifetime of this renderer and canvas, especially if the
+    // chart is embedded in dockable windows that involve parent component change.
+    
+    
+    // free possible resource, especially usefull to clear text renderer cache
+    // and deal with 
+    // https://forum.jogamp.org/TextRenderer-crash-the-JVM-after-removing-then-adding-a-canvas-from-a-AWT-or-Swing-layout-td4041660.html
+    
+    view.getPainter().clearCache();
   }
+
+  /********************* SCREENSHOTS ***********************/
 
   public void nextDisplayUpdateScreenshot() {
     doScreenshotAtNextDisplay = true;
@@ -149,6 +163,22 @@ public class Renderer3d implements GLEventListener {
   public TextureData getLastScreenshot() {
     return image;
   }
+
+  protected void renderScreenshotIfRequired(GL gl) {
+    if (doScreenshotAtNextDisplay) {
+      GLReadBufferUtil screenshot = new GLReadBufferUtil(false, false);
+      screenshot.readPixels(gl, true);
+      image = screenshot.getTextureData();
+      doScreenshotAtNextDisplay = false;
+    }
+  }
+  
+  protected void exportImageIfRequired(GL gl) {
+    
+  }
+
+
+
 
   /** Return the width that was given after the last resize event. */
   public int getWidth() {
@@ -163,6 +193,6 @@ public class Renderer3d implements GLEventListener {
   public double getLastRenderingTimeMs() {
     return lastRenderingTimeMs;
   }
-  
-  
+
+
 }

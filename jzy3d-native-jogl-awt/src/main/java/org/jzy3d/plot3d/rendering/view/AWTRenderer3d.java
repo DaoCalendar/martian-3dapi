@@ -1,52 +1,75 @@
 package org.jzy3d.plot3d.rendering.view;
 
 import java.awt.image.BufferedImage;
+import org.jzy3d.io.AWTImageExporter;
 import com.jogamp.opengl.GL;
-import com.jogamp.opengl.GLAutoDrawable;
+import com.jogamp.opengl.GLEventListener;
 import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.util.awt.AWTGLReadBufferUtil;
 
+/**
+ * This {@link GLEventListener} overrides {@link Renderer3d} for the sole purpose of generating a {@link BufferedImage}.
+ * 
+ * @see {@link getLastScreenshotImage()} to retrieve the image.
+ */
 public class AWTRenderer3d extends Renderer3d {
+  
+  protected BufferedImage bufferedImage;
+  protected AWTImageExporter exporter;
+  protected AWTGLReadBufferUtil screenshotMaker;
+
   public AWTRenderer3d() {
     super();
-  }
-
-  public AWTRenderer3d(View view, boolean traceGL, boolean debugGL) {
-    super(view, traceGL, debugGL);
   }
 
   public AWTRenderer3d(View view) {
     super(view);
   }
 
-  /**
-   * Uses a dedicated {@link AWTGLReadBufferUtil} to read a buffered image.
-   * 
-   * @see {@link getLastScreenshotImage()} to retrieve the image
-   */
-  @Override
-  public void display(GLAutoDrawable canvas) {
-    GL gl = canvas.getGL();
+  public AWTRenderer3d(View view, boolean traceGL, boolean debugGL) {
+    super(view, traceGL, debugGL);
+    
+    screenshotMaker = new AWTGLReadBufferUtil(GLProfile.getGL2GL3(), true);
 
-    if (view != null) {
-      view.clear();
-      view.render();
-
-      if (doScreenshotAtNextDisplay) {
-        AWTGLReadBufferUtil screenshot = new AWTGLReadBufferUtil(GLProfile.getGL2GL3(), true);
-        screenshot.readPixels(gl, true);
-        image = screenshot.getTextureData();
-        bufferedImage = screenshot.readPixelsToBufferedImage(gl, true);
-
-        doScreenshotAtNextDisplay = false;
-      }
-    }
   }
 
+  /********************* SCREENSHOTS ***********************/
+  
   public BufferedImage getLastScreenshotImage() {
     return bufferedImage;
   }
 
-  protected BufferedImage bufferedImage;
+  @Override
+  protected void renderScreenshotIfRequired(GL gl) {
+    if (doScreenshotAtNextDisplay) {
+      // Get JOGL Image
+      screenshotMaker.readPixels(gl, true);
+      image = screenshotMaker.getTextureData();
+      
+      // Get AWT Image
+      bufferedImage = screenshotMaker.readPixelsToBufferedImage(gl, true);
+
+      doScreenshotAtNextDisplay = false;
+    }
+  }
+  
+  @Override
+  protected void exportImageIfRequired(GL gl) {
+    if(exporter!=null) {
+      //synchronized(this) {
+        BufferedImage image = screenshotMaker.readPixelsToBufferedImage(gl, /*0, 0, width, height, */true);
+        exporter.export(image);
+      //}
+    }
+  }
+  
+  public AWTImageExporter getExporter() {
+    return exporter;
+  }
+
+  public void setExporter(AWTImageExporter exporter) {
+    this.exporter = exporter;
+  }
+
 
 }
