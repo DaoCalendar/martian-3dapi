@@ -8,7 +8,9 @@ import org.jzy3d.chart.AWTNativeChart;
 import org.jzy3d.chart.Chart;
 import org.jzy3d.chart.controllers.mouse.camera.AWTCameraMouseController;
 import org.jzy3d.chart.factories.AWTChartFactory;
+import org.jzy3d.os.OperatingSystem;
 import org.jzy3d.painters.NativeDesktopPainter;
+import org.jzy3d.plot3d.GPUInfo;
 import org.jzy3d.plot3d.primitives.Drawable;
 import org.jzy3d.plot3d.rendering.canvas.INativeCanvas;
 import org.jzy3d.plot3d.rendering.canvas.Quality;
@@ -21,6 +23,10 @@ import com.jogamp.opengl.util.texture.TextureData;
 import com.jogamp.opengl.util.texture.TextureIO;
 
 public class NativeChartTester extends ChartTester {
+  public NativeChartTester() {
+    setTestCaseInputFolder(MAVEN_TEST_RESOURCES_PATH + new NativePlatform().getLabel() + "/");
+  }
+
   protected BufferedImage getBufferedImage(Chart chart) throws IOException {
     if (classicScreenshotGen) {
       // This screenshot generation is working well
@@ -31,7 +37,7 @@ public class NativeChartTester extends ChartTester {
       AWTRenderer3d awtR = (AWTRenderer3d) ((INativeCanvas) chart.getCanvas()).getRenderer();
       return awtR.getLastScreenshotImage();
     } else {
-      // This screenshot generation performed OUT of renderer is not working as well yet
+      // This screenshot generation performed OUT of renderer is not working well yet
       //
       //
 
@@ -75,20 +81,4 @@ public class NativeChartTester extends ChartTester {
       chart.add(d);
     return chart;
   }
-
-  /* *********************************************************************** */
-
-  public TextureData loadTextureData(String filename, GL gl) throws IOException {
-    TextureData i2 = TextureIO.newTextureData(gl.getGLProfile(), new File(filename), true, null);
-    return i2;
-  }
-
-  public void screenshot(TextureData image, String testImage) throws IOException {
-    File output = new File(testImage);
-    if (!output.getParentFile().exists())
-      output.getParentFile().mkdirs();
-    TextureIO.write(image, output);
-  }
-
-
 }

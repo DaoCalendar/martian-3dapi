@@ -1,16 +1,13 @@
 package org.jzy3d.plot3d.rendering.view;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Vector;
 import java.util.function.Predicate;
-import org.apache.log4j.Logger;
 import org.jzy3d.colors.Color;
+import org.jzy3d.maths.BoundingBox2d;
 import org.jzy3d.maths.Coord3d;
-import org.jzy3d.maths.PolygonArray;
 import org.jzy3d.painters.IPainter;
 import org.jzy3d.plot3d.primitives.Drawable;
 import org.jzy3d.plot3d.rendering.view.modes.CameraMode;
+import org.jzy3d.plot3d.rendering.view.modes.ProjectionMode;
 import org.jzy3d.plot3d.transform.Transform;
 
 /**
@@ -24,23 +21,28 @@ import org.jzy3d.plot3d.transform.Transform;
  * centering on.
  * <li>{@link Camera#eye} indicates the position of the lens of the camera.
  * <li>{@link Camera#up} indicates the direction of the top of the camera.
- * <li>{@link Camera#radius} indicates the width of the field of view when working with
- * {@link CameraMode#ORTHOGONAL} projections
+ * <li>{@link Camera#setRenderingSphereRadius(float)} allows defining the volume to capture with the
+ * camera. Alternatively, a 2D view will use {@link Camera#setRenderingSquare(BoundingBox2d)} to
+ * define the volume to capture with the camera. They are used to define the width of the field of
+ * view.
  * <li>{@link Camera#near} defines the distance from which a 3d item is visible by camera.
  * <li>{@link Camera#far} defines the distance up to which a 3d item is visible by camera.
  * </ul>
  * 
  * <br>
- * <img src="doc-files/camera.png"/>
- * <a href="https://lucid.app/lucidchart/78ec260b-d2d1-430d-a363-a95089dae86d/edit?page=bKd5zgy4FZv5#">Schema source</a>
- * <br>
+ * <img src="doc-files/camera.png"/> <a href=
+ * "https://lucid.app/lucidchart/78ec260b-d2d1-430d-a363-a95089dae86d/edit?page=bKd5zgy4FZv5#">Schema
+ * source</a> <br>
  * 
  * All camera settings are in cartesian coordinates.
+ * 
+ * @see http://www.songho.ca/opengl/gl_transform.html for explanations on the maths being 3D to 2D
+ *      projection.
  * 
  * @author Martin Pernollet
  */
 public class Camera extends AbstractViewportManager {
-  private static final Logger LOGGER = Logger.getLogger(Camera.class);
+  // private static final Logger LOGGER = LogManager.getLogger(Camera.class);
 
   /** The polar default view point, i.e. Coord3d(Math.PI/3,Math.PI/5,500). */
   public static final Coord3d DEFAULT_VIEW = new Coord3d(Math.PI / 3, Math.PI / 5, 500);
@@ -70,14 +72,26 @@ public class Camera extends AbstractViewportManager {
   private Predicate<Coord3d> isOnLeftSide;
 
   /**
+   * Indicates if we are processing visible volume for 3D or 2D charts. 3D chart will lead to
+   * processing a {@link #setRenderingSphereRadius(float)}, while 2D chart will lead to processing a
+   * {@link #setRenderingSquare(float, float, float, float, float, float)}
+   */
+  protected ProjectionMode projectionMode = ProjectionMode.Projection3D;
+
+  /**
    * The rendering radius, used to automatically define with/height of scene and distance of
    * clipping planes.
    */
-  protected float radius;
+  protected float renderingSphereRadius;
   /** The distance between the camera eye and the near clipping plane. */
   protected float near;
   /** The distance between the camera eye and the far clipping plane. */
   protected float far;
+
+  /**
+   * 
+   */
+  protected BoundingBox2d renderingSquare;
 
   /**
    * The configuration used to make orthogonal rendering.
@@ -215,20 +229,88 @@ public class Camera extends AbstractViewportManager {
   }
 
   /**
-   * Set the radius of the sphere that will be contained into the rendered view. The "far" and
-   * "near" clipping planes are modified according to the eye-target distance.
+   * Return the projection mode (for 3D or 2D charts), which was defined while calling
+   * {@link #setRenderingSphereRadius(float)} for 3D charts, or
+   * {@link #setRenderingSquare(BoundingBox2d, float, float)} for 2D charts.
+   */
+  public ProjectionMode getProjectionMode() {
+    return projectionMode;
+  }
+
+  /**
+   * Set the radius of the sphere that will be visible by the camera (i.e. contained into the
+   * rendered view), for a 3D chart. The "far" and "near" clipping planes are modified according to
+   * the eye-target distance.
+   * 
+   * After calling this method, {@link #getProjectionMode()} returns
+   * {@link ProjectionMode.Projection3D}.
    */
   public void setRenderingSphereRadius(float radius) {
-    this.radius = radius;
+    this.renderingSphereRadius = radius;
+    this.projectionMode = ProjectionMode.Projection3D;
+
+    setNearFarClippingPlanesWithRadius(radius);
+  }
+
+  /**
+   * Set the boundaries of the model space that should be visible by the camera, for a 2D chart
+   * having only X and Y boundaries.
+   * 
+   * The values describe an area relative to the camera settings (eye, target, up), the actual visible region 
+   * of space is then made of the rendering square centered at the eye/target axis.
+   * 
+   * @see {@link #projectionOrtho(IPainter, ViewportConfiguration)}
+   * 
+   * After calling this method, {@link #getProjectionMode()} returns
+   * {@link ProjectionMode.Projection2D}.
+   */
+  public void setRenderingSquare(BoundingBox2d renderingSquare, float zNear, float zFar) {
+    this.renderingSquare = renderingSquare;
+    this.projectionMode = ProjectionMode.Projection2D;
+    this.near = zNear;
+    this.far = zFar;
+  }
+
+  /**
+   * Set the boundaries of the model space that should be visible by the camera, for a 2D chart
+   * having only X and Y boundaries.
+   * 
+   * The values describe an area relative to the camera settings (eye, target, up), the actual visible region 
+   * of space is then made of the rendering square centered at the eye/target axis.
+   * 
+   * @see {@link #projectionOrtho(IPainter, ViewportConfiguration)}
+   * 
+   * After calling this method, {@link #getProjectionMode()} returns
+   * {@link ProjectionMode.Projection2D}.
+   */
+  public void setRenderingSquare(BoundingBox2d renderingSquare) {
+    this.renderingSquare = renderingSquare;
+    this.projectionMode = ProjectionMode.Projection2D;
+
+    // derive general 3D case
+    float radius = Math.max(renderingSquare.xrange(), renderingSquare.yrange()) / 2;
+
+    setNearFarClippingPlanesWithRadius(radius);
+  }
+
+  protected void setNearFarClippingPlanesWithRadius(float radius) {
     this.near = (float) eye.distance(target) - radius * 2;
     this.far = (float) eye.distance(target) + radius * 2;
   }
 
+
   /**
-   * Return the radius of the sphere that will be contained into the rendered view.
+   * Return the radius of the sphere that will be contained into the rendered 3D view.
    */
   public float getRenderingSphereRadius() {
-    return radius;
+    return renderingSphereRadius;
+  }
+
+  /**
+   * Return the rendering (X,Y) square that will be contained into the rendered 2D view.
+   */
+  public BoundingBox2d getRenderingSquare() {
+    return renderingSquare;
   }
 
   /**
@@ -290,20 +372,16 @@ public class Camera extends AbstractViewportManager {
    * Transform a 2d screen coordinate into a 3d coordinate. The z component of the screen coordinate
    * indicates a depth value between the near and far clipping plane of the {@link Camera}.
    * 
-   * @throws a RuntimeException if an error occured while trying to retrieve model coordinates
+   * A null coordinate can be returned if the projection could not be performed for some reasons.
+   * This may occur if projection or modelview matrices are not invertible or if these matrices
+   * where unavailable (hence resulting to zero matrices) while invoking this method. Zero matrices
+   * can be avoided by ensuring the GL context is current using {@link IPainter#acquireGL()}
+   * 
+   * @see {@link IPainter#gluUnProject(float, float, float, float[], int, float[], int, int[], int, float[], int)}
+   * @see
    */
   public Coord3d screenToModel(IPainter painter, Coord3d screen) {
-    int viewport[] = painter.getViewPortAsInt();
-    float modelView[] = painter.getModelViewAsFloat();
-    float projection[] = painter.getProjectionAsFloat();
-    float worldcoord[] = new float[3];// wx, wy, wz;// returned xyz coords
-
-    boolean s = painter.gluUnProject(screen.x, screen.y, screen.z, modelView, 0, projection, 0,
-        viewport, 0, worldcoord, 0);
-    if (!s)
-      failedProjection("Could not retrieve screen coordinates in model.");
-
-    return new Coord3d(worldcoord[0], worldcoord[1], worldcoord[2]);
+    return painter.screenToModel(screen);
   }
 
   /**
@@ -324,152 +402,12 @@ public class Camera extends AbstractViewportManager {
    * </code>
    * </pre>
    * 
-   * @throws a RuntimeException if an error occured while trying to retrieve model coordinates AND
-   *         if {@link #failOnException} is set to true (default is false). In case
-   *         {@link #failOnException} is false, a DEBUG log is sent to the {@link #LOGGER}.
+   * A null coordinate can be returned if the projection could not be performed for some reasons.
    */
   public Coord3d modelToScreen(IPainter painter, Coord3d point) {
-    int viewport[] = painter.getViewPortAsInt();
-
-    float screenCoord[] = new float[3];// wx, wy, wz;// returned xyz coords
-
-    if (!painter.gluProject(point.x, point.y, point.z, painter.getModelViewAsFloat(), 0,
-        painter.getProjectionAsFloat(), 0, viewport, 0, screenCoord, 0))
-      failedProjection("Could not retrieve model coordinates in screen for " + point);
-    return new Coord3d(screenCoord[0], screenCoord[1], screenCoord[2]);
+    return painter.modelToScreen(point);
   }
 
-  public Coord3d[] modelToScreen(IPainter painter, Coord3d[] points) {
-    int viewport[] = painter.getViewPortAsInt();
-
-    float screenCoord[] = new float[3];
-
-    Coord3d[] projection = new Coord3d[points.length];
-
-    for (int i = 0; i < points.length; i++) {
-      if (!painter.gluProject(points[i].x, points[i].y, points[i].z, painter.getModelViewAsFloat(),
-          0, painter.getProjectionAsFloat(), 0, viewport, 0, screenCoord, 0))
-        failedProjection("Could not retrieve model coordinates in screen for " + points[i]);
-      projection[i] = new Coord3d(screenCoord[0], screenCoord[1], screenCoord[2]);
-    }
-    return projection;
-  }
-
-  public Coord3d[][] modelToScreen(IPainter painter, Coord3d[][] points) {
-    int viewport[] = painter.getViewPortAsInt();
-
-    float screenCoord[] = new float[3];
-
-    Coord3d[][] projection = new Coord3d[points.length][points[0].length];
-
-    for (int i = 0; i < points.length; i++) {
-      for (int j = 0; j < points[i].length; j++) {
-        if (!painter.gluProject(points[i][j].x, points[i][j].y, points[i][j].z,
-            painter.getModelViewAsFloat(), 0, painter.getProjectionAsFloat(), 0, viewport, 0,
-            screenCoord, 0))
-          failedProjection("Could not retrieve model coordinates in screen for " + points[i][j]);
-        projection[i][j] = new Coord3d(screenCoord[0], screenCoord[1], screenCoord[2]);
-      }
-    }
-    return projection;
-  }
-
-  public List<Coord3d> modelToScreen(IPainter painter, List<Coord3d> points) {
-    int viewport[] = painter.getViewPortAsInt();
-
-    float screenCoord[] = new float[3];
-
-    List<Coord3d> projection = new Vector<Coord3d>();
-
-    for (Coord3d point : points) {
-      if (!painter.gluProject(point.x, point.y, point.z, painter.getModelViewAsFloat(), 0,
-          painter.getProjectionAsFloat(), 0, viewport, 0, screenCoord, 0))
-        failedProjection("Could not retrieve model coordinates in screen for " + point);
-      projection.add(new Coord3d(screenCoord[0], screenCoord[1], screenCoord[2]));
-    }
-    return projection;
-  }
-
-  public ArrayList<ArrayList<Coord3d>> modelToScreen(IPainter painter,
-      ArrayList<ArrayList<Coord3d>> polygons) {
-    int viewport[] = painter.getViewPortAsInt();
-
-    float screenCoord[] = new float[3];
-
-    ArrayList<ArrayList<Coord3d>> projections = new ArrayList<ArrayList<Coord3d>>(polygons.size());
-
-    for (ArrayList<Coord3d> polygon : polygons) {
-      ArrayList<Coord3d> projection = new ArrayList<Coord3d>(polygon.size());
-      for (Coord3d point : polygon) {
-        if (!painter.gluProject(point.x, point.y, point.z, painter.getModelViewAsFloat(), 0,
-            painter.getProjectionAsFloat(), 0, viewport, 0, screenCoord, 0))
-          failedProjection("Could not retrieve model coordinates in screen for " + point);
-        projection.add(new Coord3d(screenCoord[0], screenCoord[1], screenCoord[2]));
-      }
-      projections.add(projection);
-    }
-    return projections;
-  }
-
-  public PolygonArray modelToScreen(IPainter painter, PolygonArray polygon) {
-    int viewport[] = painter.getViewPortAsInt();
-
-    float screenCoord[] = new float[3];
-
-    int len = polygon.length();
-
-    float[] x = new float[len];
-    float[] y = new float[len];
-    float[] z = new float[len];
-
-    for (int i = 0; i < len; i++) {
-      if (!painter.gluProject(polygon.x[i], polygon.y[i], polygon.z[i],
-          painter.getModelViewAsFloat(), 0, painter.getProjectionAsFloat(), 0, viewport, 0,
-          screenCoord, 0))
-        failedProjection("Could not retrieve model coordinates in screen for point " + i);
-      x[i] = screenCoord[0];
-      y[i] = screenCoord[1];
-      z[i] = screenCoord[2];
-    }
-    return new PolygonArray(x, y, z);
-  }
-
-  public PolygonArray[][] modelToScreen(IPainter painter, PolygonArray[][] polygons) {
-    int viewport[] = painter.getViewPortAsInt();
-    float screencoord[] = new float[3];
-
-    PolygonArray[][] projections = new PolygonArray[polygons.length][polygons[0].length];
-    for (int i = 0; i < polygons.length; i++) {
-      for (int j = 0; j < polygons[i].length; j++) {
-        PolygonArray polygon = polygons[i][j];
-        int len = polygon.length();
-        float[] x = new float[len];
-        float[] y = new float[len];
-        float[] z = new float[len];
-
-        for (int k = 0; k < len; k++) {
-          if (!painter.gluProject(polygon.x[k], polygon.y[k], polygon.z[k],
-              painter.getModelViewAsFloat(), 0, painter.getProjectionAsFloat(), 0, viewport, 0,
-              screencoord, 0))
-            failedProjection("Could not retrieve model coordinates in screen for point " + k);
-          x[k] = screencoord[0];
-          y[k] = screencoord[1];
-          z[k] = screencoord[2];
-        }
-        projections[i][j] = new PolygonArray(x, y, z);
-      }
-    }
-    return projections;
-  }
-
-  protected void failedProjection(String message) {
-    if (failOnException)
-      throw new RuntimeException(message);
-    else
-      LOGGER.debug(message);
-  }
-
-  boolean failOnException = false;
 
   /*******************************************************************/
 
@@ -519,6 +457,12 @@ public class Camera extends AbstractViewportManager {
     doShoot(painter, projection);
   }
 
+  /**
+   * Apply camera position and orientation and performs projection of the visible volume either in
+   * perspective or orthogonal mode.
+   * 
+   * The orthogonal mode support 2D/3D.
+   */
   public void doShoot(IPainter painter, CameraMode projection) {
     // Set viewport
     ViewportConfiguration viewport = applyViewport(painter);
@@ -533,11 +477,12 @@ public class Camera extends AbstractViewportManager {
 
     // Set camera position
     doLookAt(painter);
+
   }
 
   /**
-   * Perform a perspective projection by processing the field of view based on the {@link #radius},
-   * {@link #target} and {@link #eye}.
+   * Perform a perspective projection by processing the field of view based on the
+   * {@link #renderingSphereRadius}, {@link #target} and {@link #eye}.
    * 
    * <img src="doc-files/perspective.png"/>
    * 
@@ -546,17 +491,32 @@ public class Camera extends AbstractViewportManager {
    * @see {@link #projectionOrtho(IPainter, ViewportConfiguration)}
    */
   public void projectionPerspective(IPainter painter, ViewportConfiguration viewport) {
-    boolean stretchToFill = ViewportMode.STRETCH_TO_FILL.equals(viewport.getMode());
-    double fov = computeFieldOfView(radius * 2, eye.distance(target));
-    float aspect = stretchToFill ? ((float) screenWidth) / ((float) screenHeight) : 1;
-    float nearCorrected = near <= 0 ? 0.000000000000000000000000000000000000001f : near;
 
-    painter.gluPerspective(fov / 1, aspect * 0.55, nearCorrected, far);
+    // easier perspective processing
+    if (perspectiveProjectionUseFrustrum) {
+      float r = renderingSphereRadius / (painter.getView().getFactorViewPointDistance());
 
-    // painter.glFrustum(-radius*3, radius*3, -radius*3, radius*3, near, far);
+      painter.glFrustum(-r, r, -r, r, near, far);
+    }
+
+    // former perspective processing
+    else {
+      boolean stretchToFill = ViewportMode.STRETCH_TO_FILL.equals(viewport.getMode());
+      double fov = computeFieldOfView(renderingSphereRadius * 4, eye.distance(target));
+      float aspect = stretchToFill ? ((float) screenWidth) / ((float) screenHeight) : 1;
+      float nearCorrected = near <= 0 ? Float.MIN_VALUE : near;
+
+      painter.gluPerspective(fov / 1, aspect * 0.55, nearCorrected, far);
+    }
   }
 
+  protected boolean perspectiveProjectionUseFrustrum = true;
+
+
+
   public void doLookAt(IPainter painter) {
+    // System.out.println("Camera.LookAt : " + target + " FROM " + eye);
+
     painter.gluLookAt(eye.x, eye.y, eye.z, target.x, target.y, target.z, up.x, up.y, up.z);
   }
 
@@ -565,8 +525,8 @@ public class Camera extends AbstractViewportManager {
    * 
    * The viewable part of the 3d scene is defined by parameters {left, right, bottom, top, near,
    * far} which are processed according to the {@link ViewportMode} and the values of the camera
-   * settings ({@link #radius}, {@link #target} and {@link #eye}, {@link #near} and {@link #far}
-   * clipping planes).
+   * settings ({@link #renderingSphereRadius}, {@link #target} and {@link #eye}, {@link #near} and
+   * {@link #far} clipping planes).
    * 
    * <br>
    * <img src="doc-files/orthogonal.png"/>
@@ -576,16 +536,54 @@ public class Camera extends AbstractViewportManager {
    * @see {@link #projectionPerspective(IPainter, ViewportConfiguration)}
    */
   public void projectionOrtho(IPainter painter, ViewportConfiguration viewport) {
-    if (ViewportMode.STRETCH_TO_FILL.equals(viewport.getMode())) {
-      ortho.update(-radius, +radius, -radius, +radius, near, far);
-    } else if (ViewportMode.RECTANGLE_NO_STRETCH.equals(viewport.getMode())) {
-      ortho.update(-radius * viewport.ratio(), +radius * viewport.ratio(), -radius, +radius, near,
-          far);
-    } else if (ViewportMode.SQUARE.equals(viewport.getMode())) {
-      ortho.update(-radius, +radius, -radius, +radius, near, far);
+
+    // Case of 3D charts
+    if (ProjectionMode.Projection3D.equals(projectionMode)) {
+      projectionOrtho3D(viewport);
+    }
+    // Case of 2D charts
+    else if (ProjectionMode.Projection2D.equals(projectionMode)) {
+      projectionOrtho2D();
+    }
+    // Undefined
+    else {
+      throw new IllegalArgumentException("Unexpected value : " + projectionMode);
     }
 
+    // Apply
     ortho.apply(painter);
+  }
+
+  protected void projectionOrtho2D() {
+    ortho.update(renderingSquare.xmin(), renderingSquare.xmax(), renderingSquare.ymin(),
+        renderingSquare.ymax(), near, far);
+
+    // System.out.println("Camera:" + ortho.toString());
+    // System.out.println("Camera:" + up);
+    // painter.glOrtho(left, right, bottom, top, near, far);
+
+
+    // BoundingBox2d b2 = renderingSquare.shift(new Coord2d(target.x, target.y));
+    // System.out.println("Camera : 2D capturing at : " + eye);
+    // System.out.println("Camera : 2D capturing sq : " + b2);
+
+
+  }
+
+  protected void projectionOrtho3D(ViewportConfiguration viewport) {
+    // Case of a viewport stretched to fill the canvas or of a square viewport
+    if (ViewportMode.STRETCH_TO_FILL.equals(viewport.getMode())
+        || ViewportMode.SQUARE.equals(viewport.getMode())) {
+      ortho.update(-renderingSphereRadius, +renderingSphereRadius, -renderingSphereRadius,
+          +renderingSphereRadius, near, far);
+    }
+
+    // Case of a rectangle viewport not stretched
+    else if (ViewportMode.RECTANGLE_NO_STRETCH.equals(viewport.getMode())) {
+      ortho.update(-renderingSphereRadius * viewport.ratio(),
+          +renderingSphereRadius * viewport.ratio(), -renderingSphereRadius, +renderingSphereRadius,
+          near, far);
+    }
   }
 
   /**
@@ -667,8 +665,8 @@ public class Camera extends AbstractViewportManager {
   protected String toString(Coord3d eye, Coord3d target, Coord3d up) {
     String output = "(Camera)";
     output += (" lookFrom  = {" + eye.x + ", " + eye.y + ", " + eye.z + "}");
-    output += (" lookTo    = {" + target.x + ", " + target.y + ", " + target.z + "}");
-    output += (" topToward = {" + up.x + ", " + up.y + ", " + up.z + "}");
+    output += ("  lookTo = {" + target.x + ", " + target.y + ", " + target.z + "}");
+    output += ("  topToward = {" + up.x + ", " + up.y + ", " + up.z + "}");
     return output;
   }
 
@@ -690,8 +688,6 @@ public class Camera extends AbstractViewportManager {
     /** the latest value used to invoke glOrtho */
     public double far;
 
-    public Ortho() {}
-
     public void update(double left, double right, double bottom, double top, double near,
         double far) {
       this.left = left;
@@ -708,7 +704,10 @@ public class Camera extends AbstractViewportManager {
     public void apply(IPainter painter) {
       if (left != 0 && right != 0 && bottom != 0 && top != 0 && near != 0 && far != 0) {
         painter.glOrtho(left, right, bottom, top, near, far);
+         //System.out.println("Camera.glOrtho("+left+","+ right+","+ bottom+","+ top +","+ near+","+
+         //far + ")");
       }
+
     }
 
     @Override

@@ -26,11 +26,16 @@ public class AbstractScreenshotKeyController extends AbstractController
   }
 
   @Override
-  public void dispose() {
-    for (Chart c : targets) {
-      c.getCanvas().removeKeyController(this);
-    }
+  public void unregister(Chart chart) {
+    super.unregister(chart);
+    chart.getCanvas().removeKeyController(this);
 
+  }
+  
+  @Override
+  public void dispose() {
+    unregister(chart);
+    
     super.dispose();
   }
 

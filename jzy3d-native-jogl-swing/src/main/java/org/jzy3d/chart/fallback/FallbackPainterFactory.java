@@ -16,7 +16,7 @@ import org.jzy3d.ui.views.ImagePanel;
 
 public class FallbackPainterFactory extends AWTPainterFactory {
   @Override
-  public Renderer3d newRenderer3D(View view, boolean traceGL, boolean debugGL) {
+  public Renderer3d newRenderer3D(View view) {
     return new AWTImageRenderer3d(view, traceGL, debugGL);
   }
 
@@ -25,9 +25,7 @@ public class FallbackPainterFactory extends AWTPainterFactory {
     return new AWTCameraMouseController(chart) {
       @Override
       public void register(Chart chart) {
-        if (targets == null)
-          targets = new ArrayList<Chart>(1);
-        targets.add(chart);
+        super.register(chart);
 
         // TODO : CREATE FallbackCanvas wrapping/extending
         // ImagePanel, rather than injecting in FallbackChart

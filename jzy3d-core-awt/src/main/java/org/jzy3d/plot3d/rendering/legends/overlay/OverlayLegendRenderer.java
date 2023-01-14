@@ -6,10 +6,12 @@ import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.util.List;
 import org.jzy3d.colors.AWTColor;
-import org.jzy3d.maths.Coord2d;
+import org.jzy3d.maths.Lists;
+import org.jzy3d.plot2d.primitives.Serie2d;
 import org.jzy3d.plot2d.rendering.AWTGraphicsUtils;
 import org.jzy3d.plot3d.rendering.legends.overlay.LegendLayout.Corner;
 import org.jzy3d.plot3d.rendering.view.AWTRenderer2d;
+import org.jzy3d.plot3d.rendering.view.AbstractAWTRenderer2d;
 
 /**
  * 
@@ -19,11 +21,17 @@ import org.jzy3d.plot3d.rendering.view.AWTRenderer2d;
  * @author Martin Pernollet
  *
  */
-public class OverlayLegendRenderer implements AWTRenderer2d {
+public class OverlayLegendRenderer extends AbstractAWTRenderer2d implements AWTRenderer2d {
   protected List<Legend> info;
-  protected LegendLayout layout = new LegendLayout();
+  protected LineLegendLayout layout = new LineLegendLayout();
 
-  Coord2d scale = new Coord2d(1,1);
+  public OverlayLegendRenderer(Legend info) {
+    this.info = Lists.of(info);
+  }
+
+  public OverlayLegendRenderer(Legend... info) {
+    this.info = Lists.of(info);
+  }
 
   public OverlayLegendRenderer(List<Legend> info) {
     super();
@@ -34,30 +42,48 @@ public class OverlayLegendRenderer implements AWTRenderer2d {
   public void paint(Graphics g, int canvasWidth, int canvasHeight) {
     Graphics2D g2d = (Graphics2D) g;
     
-    g2d.scale(scale.x, scale.y);
-    
+    // Ensure native overlay will place image at the appropriate location
+    // Since native and emulgl deal differently with overlay when hiDPI
+    if(view!=null && view.getCanvas().isNative()) {
+      canvasHeight /= view.getPixelScale().y;
+      canvasWidth /= view.getPixelScale().x;
+    }
+
+
     AWTGraphicsUtils.configureRenderingHints(g2d);
 
-    if (layout.font != null)
+    if (layout.font != null) {
       g2d.setFont(layout.font);
+    }
 
     FontMetrics fm = g.getFontMetrics();
     int textHeight = fm.getHeight();
     int textWidthMax = maxStringWidth(fm);
 
     // Box dimensions
-    int xBoxPos = layout.boxMarginX;
-    int yBoxPos = layout.boxMarginY;
+    
     int boxWidth = layout.txtMarginX + textWidthMax + layout.sampleLineMargin
         + layout.sampleLineLength + layout.txtMarginX;
     int boxHeight = layout.txtMarginY + (textHeight + layout.txtInterline) * (info.size() - 1)
         + textHeight + layout.txtMarginY;
 
+    
+    // Box offset to apply margins
+    
+    // horizontal left
+    int xBoxPos = Math.round(layout.getMargin().getLeft());
+    
+    // horizontal right
     if (Corner.TOP_RIGHT.equals(layout.corner) || Corner.BOTTOM_RIGHT.equals(layout.corner)) {
-      xBoxPos = canvasWidth - layout.boxMarginX - boxWidth;
+      xBoxPos = Math.round(canvasWidth - layout.getMargin().getRight() - boxWidth);
     }
+    
+    // vertical top
+    int yBoxPos = Math.round(layout.getMargin().getTop());
+
+    // vertical bottom
     if (Corner.BOTTOM_LEFT.equals(layout.corner) || Corner.BOTTOM_RIGHT.equals(layout.corner)) {
-      yBoxPos = canvasHeight - layout.boxMarginY - boxHeight;
+      yBoxPos = Math.round(canvasHeight - layout.getMargin().getBottom() - boxHeight);
     }
 
     // Background
@@ -65,7 +91,6 @@ public class OverlayLegendRenderer implements AWTRenderer2d {
       g2d.setColor(AWTColor.toAWT(layout.backgroundColor));
       g2d.fillRect(xBoxPos, yBoxPos, boxWidth, boxHeight);
     }
-
 
     // Text position
     int xTextPos = xBoxPos + layout.txtMarginX;
@@ -78,17 +103,13 @@ public class OverlayLegendRenderer implements AWTRenderer2d {
       yTextPos += (layout.txtInterline + textHeight);
     }
 
-
     // Border
-    g2d.setColor(AWTColor.toAWT(layout.borderColor));
-    g2d.drawRect(xBoxPos, yBoxPos, boxWidth, boxHeight);
-    
-    
-    // Reset scale for other renderers
-    //g2d.scale(1/scale.x, 1/scale.y);
+    if(layout.borderColor!=null) {
+      g2d.setColor(AWTColor.toAWT(layout.borderColor));
+      g2d.drawRect(xBoxPos, yBoxPos, boxWidth, boxHeight);
+    }
 
   }
-
 
 
   public void paintLegend(Graphics2D g2d, int textHeight, int textWidthMax, int xTextPos,
@@ -98,10 +119,14 @@ public class OverlayLegendRenderer implements AWTRenderer2d {
     g2d.drawString(line.label, xTextPos, yTextPos);
 
     // Line sample
+
     int xLineStart = xTextPos + textWidthMax + layout.sampleLineMargin;
-    g2d.setColor(AWTColor.toAWT(line.color));
-    g2d.drawLine(xLineStart, yTextPos - textHeight / 2, xLineStart + layout.sampleLineLength,
-        yTextPos - textHeight / 2);
+
+    if(line.color!=null) {
+      g2d.setColor(AWTColor.toAWT(line.color));
+      g2d.drawLine(xLineStart, yTextPos - textHeight / 2, xLineStart + layout.sampleLineLength,
+          yTextPos - textHeight / 2);
+    }
 
     // Symbol
     if (line.shape != null) {
@@ -141,19 +166,11 @@ public class OverlayLegendRenderer implements AWTRenderer2d {
     this.info = info;
   }
 
-  public LegendLayout getLayout() {
+  public LineLegendLayout getLayout() {
     return layout;
   }
 
-  public void setLayout(LegendLayout layout) {
+  public void setLayout(LineLegendLayout layout) {
     this.layout = layout;
-  }
-
-  public Coord2d getScale() {
-    return scale;
-  }
-
-  public void setScale(Coord2d scale) {
-    this.scale = scale;
   }
 }

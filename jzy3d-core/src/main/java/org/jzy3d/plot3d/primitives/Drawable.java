@@ -88,10 +88,8 @@ public abstract class Drawable implements IGLRenderer, ISortableDraw {
 
   protected void doDrawBoundsIfDisplayed(IPainter painter) {
     if (isBoundingBoxDisplayed()) {
-      Parallelepiped p = new Parallelepiped(getBounds());
-      p.setFaceDisplayed(false);
-      p.setWireframeColor(getBoundingBoxColor());
-      p.draw(painter);
+      int width = 2; // getWireframeWidth()
+      painter.box(bbox, getBoundingBoxColor(), width, spaceTransformer);
     }
   }
 
@@ -122,6 +120,8 @@ public abstract class Drawable implements IGLRenderer, ISortableDraw {
   }
 
   public void setTransformBefore(Transform transformBefore) {
+    getBounds().apply(transformBefore);
+    
     this.transformBefore = transformBefore;
   }
 
@@ -141,8 +141,8 @@ public abstract class Drawable implements IGLRenderer, ISortableDraw {
    * @return the center of the bounding box, or {@link Coord3d.INVALID}.
    */
   public Coord3d getBarycentre() {
-    if (bbox != null)
-      return bbox.getCenter();
+    if (getBounds() != null)
+      return getBounds().getCenter();
     else
       return Coord3d.INVALID.clone();
   }
@@ -251,6 +251,15 @@ public abstract class Drawable implements IGLRenderer, ISortableDraw {
       for (IDrawableListener listener : listeners) {
         listener.drawableChanged(e);
       }
+    }
+  }
+  
+  public Wireframeable asWireframeable() {
+    if(this instanceof Wireframeable) {
+      return (Wireframeable)this;
+    }
+    else {
+      return null;
     }
   }
 

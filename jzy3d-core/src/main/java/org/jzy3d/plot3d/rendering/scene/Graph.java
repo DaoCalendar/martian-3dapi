@@ -2,8 +2,8 @@ package org.jzy3d.plot3d.rendering.scene;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jzy3d.maths.Array;
 import org.jzy3d.maths.BoundingBox3d;
-import org.jzy3d.maths.TicToc;
 import org.jzy3d.painters.IPainter;
 import org.jzy3d.plot3d.primitives.Composite;
 import org.jzy3d.plot3d.primitives.Drawable;
@@ -35,6 +35,19 @@ import org.jzy3d.plot3d.transform.Transform;
  * @author Martin Pernollet
  */
 public class Graph {
+  protected List<Drawable> components;
+  protected Scene scene;
+  protected Transform transform;
+  protected AbstractOrderingStrategy strategy;
+  protected boolean sort = true;
+
+  protected List<GraphListener> graphListener;
+
+  protected BoundingBox3d clipBox;
+  protected boolean clipIncludesLimits;
+  protected static final float CLIP_MARGIN_RATIO = 1f/1000;
+  
+  
   public Graph(Scene scene) {
     this(scene, new DefaultOrderingStrategy(), true);
   }
@@ -48,14 +61,17 @@ public class Graph {
   }
 
   public Graph(Scene scene, AbstractOrderingStrategy strategy, boolean sort) {
+    this();
     this.scene = scene;
     this.strategy = strategy;
     this.sort = sort;
+  }
+  
+  protected Graph() {
     this.components = new ArrayList<Drawable>();
-    // components = Collections.synchronizedList(new
-    // ArrayList<AbstractDrawable>());
     this.graphListener = new ArrayList<>();
   }
+
 
   public synchronized void dispose() {
     // synchronized(components){
@@ -73,7 +89,7 @@ public class Graph {
    * Add a Drawable to the graph and call all views' so that they update their bounds according to
    * their mode (automatic or manual).
    * 
-   * Addition is to the graph is synchronized.
+   * Addition to the graph is synchronized.
    * 
    * @param drawable : The drawable that must be added to the scene graph.
    * @param update : should be true if you wish to have all the views updated with old bounds
@@ -85,8 +101,7 @@ public class Graph {
     }
 
     if (updateViews)
-      for (View view : scene.views)
-        view.updateBounds();
+      viewsUpdateBounds();
   }
 
   public void add(Drawable drawable) {
@@ -97,9 +112,9 @@ public class Graph {
     for (Drawable d : drawables)
       add(d, false);
     if (updateViews)
-      for (View view : scene.views)
-        view.updateBounds();
+      viewsUpdateBounds();
   }
+
 
   public void add(List<? extends Drawable> drawables) {
     add(drawables, true);
@@ -134,7 +149,7 @@ public class Graph {
   }
 
   public synchronized List<IGLBindedResource> getAllGLBindedResources() {
-    List<IGLBindedResource> out = new ArrayList<IGLBindedResource>();
+    List<IGLBindedResource> out = new ArrayList<>();
     for (Drawable c : components) {
       if (c instanceof IGLBindedResource) {
         out.add((IGLBindedResource) c);
@@ -178,14 +193,33 @@ public class Graph {
    * 
    */
   public void draw(IPainter painter) {
-    draw(painter, components, sort);
-  }
+    // activate clipping if defined
+    if(clipBox!=null) {
 
-  protected TicToc t = new TicToc();
+      transform.execute(painter);
+      
+      if(clipIncludesLimits)
+        painter.clip(clipBox.marginRatio(CLIP_MARGIN_RATIO)); // make the box a little bigger
+      else
+        painter.clip(clipBox);
+      
+      painter.clipOn();
+    }
+    
+    //Array.print("Clipping planes : ", painter.clipStatus());
+    
+    // draw
+    draw(painter, components, sort);
+    
+    // reset clipping if defined
+    if(clipBox!=null) {
+      painter.clipOff();
+    }
+  }
 
   public synchronized void draw(IPainter painter, List<Drawable> components, boolean sort) {
     painter.glMatrixMode_ModelView();
-    if (!sort) {
+    if (!sort || strategy==null) {
       drawSimple(painter, components);
     } else {
       drawDecomposition(painter);
@@ -215,7 +249,7 @@ public class Graph {
    * return all the current Graph primitives decomposition.
    */
   public List<Drawable> getDecomposition() {
-    ArrayList<Drawable> monotypes;
+    List<Drawable> monotypes;
     synchronized (components) {
       monotypes = Decomposition.getDecomposition(components);
     }
@@ -268,7 +302,8 @@ public class Graph {
    */
   public synchronized BoundingBox3d getBounds() {
     if (components.size() == 0) {
-      return new BoundingBox3d(0, 0, 0, 0, 0, 0);
+      // return a non initialized bound
+      return new BoundingBox3d();
     } else {
       BoundingBox3d box = new BoundingBox3d();
 
@@ -283,8 +318,28 @@ public class Graph {
       return box;
     }
   }
+  
 
-  /* */
+  public BoundingBox3d getClipBox() {
+    return clipBox;
+  }
+
+  public void setClipBox(BoundingBox3d clipBox) {
+    setClipBox(clipBox, true, true);
+  }
+
+  /**
+   * Configure clipping plane according to the input bounding box.
+   * 
+   * Update view according to settings
+   */
+  public void setClipBox(BoundingBox3d clipBox, boolean includeLimits, boolean updateView) {
+    this.clipBox = clipBox;
+    this.clipIncludesLimits = includeLimits;
+    
+    if(updateView)
+      viewsShoot();
+  }
 
   /**
    * Return the list of available {@link Drawable}'s {@link ILegend} .
@@ -360,16 +415,18 @@ public class Graph {
   public Scene getScene() {
     return scene;
   }
+  
+  
+  
+  protected void viewsUpdateBounds() {
+    for (View view : scene.views)
+      view.updateBounds();
+  }
 
-  protected List<Drawable> components;
-  protected Scene scene;
-  protected Transform transform;
-  // protected OrderingStrategy strategy;
-
-  protected boolean VERBOSE = false;
-  protected AbstractOrderingStrategy strategy;
-  protected boolean sort = true;
-
-  protected List<GraphListener> graphListener;
-
+  protected void viewsShoot() {
+    if(scene!=null) {
+      for (View view : scene.views)
+        view.shoot();
+    }
+  }
 }

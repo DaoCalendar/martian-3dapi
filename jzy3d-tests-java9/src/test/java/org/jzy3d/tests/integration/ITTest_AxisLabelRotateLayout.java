@@ -9,7 +9,7 @@ import org.jzy3d.chart.factories.EmulGLChartFactory;
 import org.jzy3d.colors.Color;
 import org.jzy3d.painters.Font;
 import org.jzy3d.plot3d.primitives.Shape;
-import org.jzy3d.plot3d.primitives.axis.layout.IAxisLayout;
+import org.jzy3d.plot3d.primitives.axis.layout.AxisLayout;
 import org.jzy3d.plot3d.primitives.axis.layout.LabelOrientation;
 import org.jzy3d.plot3d.primitives.axis.layout.ZAxisSide;
 import org.jzy3d.plot3d.primitives.axis.layout.fonts.HiDPIProportionalFontSizePolicy;
@@ -20,14 +20,14 @@ import org.jzy3d.plot3d.rendering.view.View;
 public class ITTest_AxisLabelRotateLayout extends ITTest{
   public static void main(String[] args) {
     open(new ITTest_AxisLabelRotateLayout().whenAxisLabelOrientationNotHorizontal(WT.EmulGL_AWT, HiDPI.ON));
+    //open(new ITTest_AxisLabelRotateLayout().whenAxisLabelOrientationNotHorizontal(WT.Native_AWT, HiDPI.ON));
   }
   
   @Test
   public void whenAxisLabelOrientationNotHorizontal() {
-
-    whenAxisLabelOrientationNotHorizontal(WT.EmulGL_AWT, HiDPI.ON);
-    whenAxisLabelOrientationNotHorizontal(WT.EmulGL_AWT, HiDPI.OFF);
-    whenAxisLabelOrientationNotHorizontal(WT.Native_AWT, HiDPI.OFF);
+    System.out.println("ITTest : whenAxisLabelOrientationNotHorizontal");
+    
+    forEach((toolkit, resolution) -> whenAxisLabelOrientationNotHorizontal(toolkit, resolution));
   }
 
   public Chart whenAxisLabelOrientationNotHorizontal(WT wt, HiDPI hidpi) {
@@ -40,7 +40,7 @@ public class ITTest_AxisLabelRotateLayout extends ITTest{
     // -------------
     // WHEN
 
-    IAxisLayout layout = chart.getAxisLayout();
+    AxisLayout layout = chart.getAxisLayout();
     //layout.setFont(new Font("Apple Chancery", 20));
     layout.setFont(new Font("Helvetica", 14));
     layout.setFontSizePolicy(new HiDPIProportionalFontSizePolicy(chart.getView()));
@@ -65,12 +65,19 @@ public class ITTest_AxisLabelRotateLayout extends ITTest{
     //view.setDisplayAxisWholeBounds(true);
     //view.setMaintainAllObjectsInView(true);
     view.setCameraRenderingSphereRadiusFactor(1.1f);
+    
+    
 
     AWTColorbarLegend colorbar = new AWTColorbarLegend(surface, chart.getView().getAxis().getLayout());
     colorbar.setMinimumWidth(200);
     surface.setLegend(colorbar);
     chart.add(surface);
-
+    
+    //view.getCamera().setScreenGridDisplayed(true);
+    //surface.setLegendDisplayed(false);
+    //colorbar.setScreenGridDisplayed(true);
+    
+    
     // Open and enable controllers
 
     chart.getKeyboard();

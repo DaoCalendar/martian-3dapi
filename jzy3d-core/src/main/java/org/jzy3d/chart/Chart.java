@@ -1,9 +1,16 @@
 package org.jzy3d.chart;
 
+import java.awt.Component;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jzy3d.chart.controllers.camera.AbstractCameraController;
 import org.jzy3d.chart.controllers.keyboard.camera.ICameraKeyController;
 import org.jzy3d.chart.controllers.keyboard.screenshot.IScreenshotKeyController;
@@ -12,19 +19,36 @@ import org.jzy3d.chart.controllers.mouse.picking.IMousePickingController;
 import org.jzy3d.chart.controllers.thread.camera.CameraThreadController;
 import org.jzy3d.chart.factories.IChartFactory;
 import org.jzy3d.chart.factories.IFrame;
+import org.jzy3d.chart.factories.IPainterFactory;
 import org.jzy3d.colors.Color;
+import org.jzy3d.events.IViewPointChangedListener;
+import org.jzy3d.events.ViewPointChangedEvent;
 import org.jzy3d.maths.Coord3d;
 import org.jzy3d.maths.Rectangle;
 import org.jzy3d.maths.Scale;
+import org.jzy3d.maths.Statistics;
+import org.jzy3d.maths.TicToc;
 import org.jzy3d.painters.IPainter;
+import org.jzy3d.plot2d.primitives.Serie2d;
 import org.jzy3d.plot3d.primitives.Drawable;
-import org.jzy3d.plot3d.primitives.axis.layout.IAxisLayout;
+import org.jzy3d.plot3d.primitives.IGLBindedResource;
+import org.jzy3d.plot3d.primitives.Wireframeable;
+import org.jzy3d.plot3d.primitives.axis.layout.AxisLayout;
+import org.jzy3d.plot3d.primitives.axis.layout.LabelOrientation;
 import org.jzy3d.plot3d.rendering.canvas.ICanvas;
 import org.jzy3d.plot3d.rendering.canvas.IScreenCanvas;
 import org.jzy3d.plot3d.rendering.canvas.Quality;
+import org.jzy3d.plot3d.rendering.legends.ILegend;
+import org.jzy3d.plot3d.rendering.legends.colorbars.IColorbarLegend;
 import org.jzy3d.plot3d.rendering.lights.Light;
+import org.jzy3d.plot3d.rendering.scene.Scene;
 import org.jzy3d.plot3d.rendering.view.View;
+import org.jzy3d.plot3d.rendering.view.View2D;
 import org.jzy3d.plot3d.rendering.view.ViewportMode;
+import org.jzy3d.plot3d.rendering.view.layout.ViewAndColorbarsLayout;
+import org.jzy3d.plot3d.rendering.view.lod.LODCandidates;
+import org.jzy3d.plot3d.rendering.view.lod.LODPerf;
+import org.jzy3d.plot3d.rendering.view.lod.LODSetting;
 import org.jzy3d.plot3d.rendering.view.modes.ViewPositionMode;
 import org.jzy3d.plot3d.transform.space.SpaceTransformer;
 
@@ -35,14 +59,20 @@ import org.jzy3d.plot3d.transform.space.SpaceTransformer;
  * @author Martin Pernollet
  */
 public class Chart {
+  protected static Logger logger = LogManager.getLogger(Chart.class);
+
   private static final int MOUSE_PICK_SIZE_DEFAULT = 10;
   private static final String DEFAULT_WINDOW_TITLE = "Jzy3d";
   public static final Quality DEFAULT_QUALITY = Quality.Intermediate();
 
+  protected static final int LOD_BOUNDS_ONLY_RENDER_TIME_MS = 30;
+  protected static final int LOD_EVAL_TRIALS = 3;
+  protected static final int LOD_EVAL_MAX_EVAL_DURATION_MS = 500; // ms
+
   protected IChartFactory factory;
 
   protected Quality quality;
-  protected ChartScene scene;
+  protected Scene scene;
   protected View view;
   protected ICanvas canvas;
 
@@ -56,6 +86,12 @@ public class Chart {
   protected IMousePickingController mousePicking;
   protected ICameraKeyController keyboard;
   protected IScreenshotKeyController screenshotKey;
+
+  protected Light lightOnCamera;
+  protected Light[] lightPairOnCamera;
+  
+  protected Map<String, Serie2d> series = new HashMap<String, Serie2d>();
+
 
 
   public Chart(IChartFactory factory, Quality quality) {
@@ -82,30 +118,140 @@ public class Chart {
   /* HELPERS TO PRETTIFY CHARTS */
 
   public Chart black() {
-    getView().setBackgroundColor(Color.BLACK);
-    getAxisLayout().setGridColor(Color.WHITE);
-    getAxisLayout().setMainColor(Color.WHITE);
-    return this;
+    return color(Color.BLACK, Color.WHITE);
   }
 
   public Chart white() {
-    getView().setBackgroundColor(Color.WHITE);
-    getAxisLayout().setGridColor(Color.BLACK);
-    getAxisLayout().setMainColor(Color.BLACK);
+    return color(Color.WHITE, Color.BLACK);
+  }
+
+  public Chart color(Color background, Color axis) {
+    getView().setBackgroundColor(background);
+    getAxisLayout().setGridColor(axis);
+    getAxisLayout().setMainColor(axis);
     return this;
   }
 
+  /**
+   * Toggle the chart for 2D rendering.
+   * 
+   * Warning : when using 2D rendering, one should not try to set a squared view to avoid messing a
+   * tick and axis labels.
+   */
   public Chart view2d() {
-    IAxisLayout axe = getAxisLayout();
-    axe.setZAxeLabelDisplayed(false);
-    axe.setTickLineDisplayed(false);
-
+    return view2d(View2D.XY);
+  }
+  
+  public Chart view2d(View2D view2D) {
+    AxisLayout axisLayout = getAxisLayout();
     View view = getView();
-    view.setViewPositionMode(ViewPositionMode.TOP);
-    view.setSquared(true);
+
+    // Remember 3D layout
+    if(view.is3D()) {
+      axisXLabelOrientation = axisLayout.getXAxisLabelOrientation();
+      axisYLabelOrientation = axisLayout.getYAxisLabelOrientation();
+      axisZLabelOrientation = axisLayout.getZAxisLabelOrientation();
+
+      isTickLineDisplayed = axisLayout.isTickLineDisplayed();
+
+      isSquaredViewActive = view.getSquared();
+      viewPositionMode = view.getViewMode();
+      viewportMode = view.getCamera().getViewportMode();
+      viewpoint = view.getViewPoint().clone();
+    }
+    
+    if(View2D.XY.equals(view2D)) {
+      // Apply 2D layout to axis
+      axisLayout.setXAxisLabelOrientation(LabelOrientation.HORIZONTAL);
+      axisLayout.setYAxisLabelOrientation(LabelOrientation.VERTICAL);
+
+      // Apply 2D layout to view
+      view.setViewPositionMode(ViewPositionMode.TOP);
+    }
+    else if(View2D.XZ.equals(view2D)) {
+      // Apply 2D layout to axis
+      axisLayout.setXAxisLabelOrientation(LabelOrientation.HORIZONTAL);
+      axisLayout.setZAxisLabelOrientation(LabelOrientation.VERTICAL);
+
+      // Apply 2D layout to view
+      view.setViewPositionMode(ViewPositionMode.XZ);
+    }
+
+    else if(View2D.YZ.equals(view2D)) {
+      // Apply 2D layout to axis
+      axisLayout.setYAxisLabelOrientation(LabelOrientation.HORIZONTAL);
+      axisLayout.setZAxisLabelOrientation(LabelOrientation.VERTICAL);
+
+      // Apply 2D layout to view
+      view.setViewPositionMode(ViewPositionMode.YZ);
+    }
+
+    // General 2D axis layout
+    axisLayout.setTickLineDisplayed(false);
+    
+    // General 2D view settings
+    view.setSquared(false);
     view.getCamera().setViewportMode(ViewportMode.STRETCH_TO_FILL);
+
+    // Update if needed
+    if (!getQuality().isAnimated()) {
+      render();
+
+      // Hack for swing : https://github.com/jzy3d/jzy3d-api/issues/293
+      if(getPainter().getWindowingToolkit().isSwing()) {
+        render(2);
+      }
+    }
     return this;
   }
+  
+  // memory of 3D settings before switching to 2D
+  protected LabelOrientation axisXLabelOrientation = null;
+  protected LabelOrientation axisYLabelOrientation = null;
+  protected LabelOrientation axisZLabelOrientation = null;
+  protected boolean isTickLineDisplayed = true;
+  protected boolean isSquaredViewActive = true;
+  protected ViewPositionMode viewPositionMode = ViewPositionMode.FREE;
+  protected ViewportMode viewportMode = ViewportMode.RECTANGLE_NO_STRETCH;
+  protected Coord3d viewpoint = View.VIEWPOINT_DEFAULT.clone();
+  
+  public Chart view3d() {
+    AxisLayout axisLayout = getAxisLayout();
+    
+    // Restore 3D layout to axis
+    axisLayout.setTickLineDisplayed(isTickLineDisplayed);
+    if(axisXLabelOrientation!=null){
+      axisLayout.setXAxisLabelOrientation(axisXLabelOrientation);
+    }
+    if(axisYLabelOrientation!=null){
+      axisLayout.setYAxisLabelOrientation(axisYLabelOrientation);
+    }
+    if(axisZLabelOrientation!=null){
+      axisLayout.setZAxisLabelOrientation(axisZLabelOrientation);
+    }
+    
+    // Restore 3D layout to view
+    //viewPositionMode = ViewPositionMode.FREE;
+    
+    View view = getView();
+    view.setViewPoint(viewpoint, false);
+    view.setViewPositionMode(viewPositionMode);
+    view.setSquared(isSquaredViewActive);
+    view.getCamera().setViewportMode(viewportMode);
+
+    // Update if needed
+    if (!getQuality().isAnimated()) {
+      render();
+      
+      // Hack for swing : https://github.com/jzy3d/jzy3d-api/issues/293
+      if(getPainter().getWindowingToolkit().isSwing()) {
+        render(2);
+      }
+    }
+
+    return this;
+  }
+
 
   /** Alias for {@link display()} */
   public IFrame show(Rectangle rectangle, String title) {
@@ -114,11 +260,6 @@ public class Chart {
 
   public IFrame display(Rectangle rectangle, String title) {
     return getFactory().getPainterFactory().newFrame(this, rectangle, title);
-  }
-
-  public void clear() {
-    scene.clear();
-    view.shoot();
   }
 
   public void dispose() {
@@ -138,6 +279,12 @@ public class Chart {
    */
   public void render() {
     view.shoot();
+  }
+
+  public void render(int n) {
+    for (int i = 0; i < n; i++) {
+      render();
+    }
   }
 
   public void setAnimated(boolean status) {
@@ -173,7 +320,7 @@ public class Chart {
   }
 
   public void stopAllThreads() {
-    getMouse().getSlaveThreadController().stop();
+    getMouse().getThread().stop();
     stopAnimation();
   }
 
@@ -185,7 +332,7 @@ public class Chart {
     canvas.screenshot(file);
   }
 
-  public Object screenshot() throws IOException {
+  public Object screenshot() {
     return canvas.screenshot();
   }
 
@@ -203,12 +350,18 @@ public class Chart {
 
   /* CONTROLLERS */
 
+  /**
+   * use {@link #addMouse()} instead.
+   */
+  @Deprecated
   public ICameraMouseController addMouseCameraController() {
+    return addMouse();
+  }
+
+  public ICameraMouseController addMouse() {
     if (mouse == null) {
       mouse = getFactory().getPainterFactory().newMouseCameraController(this);
-
       configureMouseWithAnimator();
-
     }
     return mouse;
   }
@@ -235,7 +388,15 @@ public class Chart {
     return mousePicking;
   }
 
+  /**
+   * use {@link #addKeyboard()} instead.
+   */
+  @Deprecated
   public ICameraKeyController addKeyboardCameraController() {
+    return addKeyboard();
+  }
+
+  public ICameraKeyController addKeyboard() {
     if (keyboard == null) {
       keyboard = getFactory().getPainterFactory().newKeyboardCameraController(this);
 
@@ -263,13 +424,13 @@ public class Chart {
 
   public ICameraMouseController getMouse() {
     if (mouse == null)
-      return addMouseCameraController();
+      return addMouse();
     else
       return mouse;
   }
 
   public CameraThreadController getThread() {
-    return getMouse().getSlaveThreadController();
+    return getMouse().getThread();
   }
 
   public IMousePickingController getMousePicking() {
@@ -281,7 +442,7 @@ public class Chart {
 
   public ICameraKeyController getKeyboard() {
     if (keyboard == null)
-      return addKeyboardCameraController();
+      return addKeyboard();
     else
       return keyboard;
   }
@@ -317,11 +478,11 @@ public class Chart {
   /* FRAME */
 
   public IFrame open() {
-    return open(DEFAULT_WINDOW_TITLE, new Rectangle(0, 0, 600, 600));
+    return open(DEFAULT_WINDOW_TITLE, new Rectangle(0, 0, 800, 600));
   }
 
   public IFrame open(String title) {
-    return open(title, new Rectangle(0, 0, 600, 600));
+    return open(title, new Rectangle(0, 0, 800, 600));
   }
 
   public IFrame open(String title, int width, int height) {
@@ -333,6 +494,18 @@ public class Chart {
   }
 
   /**
+   * A one liner to wait a bit, mainly for test purpose, when needing to have a frame opened and a
+   * chart initialized
+   */
+  public void sleep(int mili) {
+    try {
+      Thread.sleep(mili);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+  }
+
+  /**
    * Open the frame if it was not opened before
    * 
    * @param title
@@ -341,7 +514,13 @@ public class Chart {
    */
   public IFrame open(String title, Rectangle rect) {
     if (frame == null) {
-      frame = getFactory().getPainterFactory().newFrame(this, rect, title);
+      IPainterFactory painterFactory = getFactory().getPainterFactory();
+      if (!painterFactory.isOffscreen()) {
+        frame = getFactory().getPainterFactory().newFrame(this, rect, title);
+      } else {
+        logger.warn(
+            "Chart is configured for being offscreen. Did not open any frame. May disable call to open");
+      }
     }
 
     // start animator according to quality
@@ -366,6 +545,7 @@ public class Chart {
       add(drawable, false);
     }
     getView().updateBounds();
+    updateLightsOnCameraPositions();
     return this;
   }
 
@@ -388,15 +568,241 @@ public class Chart {
    * 
    * @param drawable
    * @param updateView states if the view should be updated immediately. Should be false if adding
-   *        multiple drawable at the same time.
+   *        multiple drawable at the same time. The effect of not updating view is that view bounds
+   *        won't be updated as well
    * @return
    */
   public Chart add(Drawable drawable, boolean updateView) {
     drawable.setSpaceTransformer(getView().getSpaceTransformer());
-    getScene().getGraph().add(drawable, updateView);
+
+    // 1. Add object
+    getScene().getGraph().add(drawable, false);
+
+    // 2. Mount if it requires a GPU context
+    if (drawable instanceof IGLBindedResource) {
+
+      if (view.isInitialized()) {
+        // logger.warn(
+        // drawable + " must be added to chart before the view has initialized, hence before the
+        // chart is open.");
+
+        // We are in here in the application thread, no in AWT thread, so we have to acquire
+        // GL context, so that the drawable gets mounted with a usable GL instance
+        getPainter().acquireGL();
+
+        ((IGLBindedResource) drawable).mount(getPainter());
+
+        // And we kindly release GL to let AWT render again
+        getPainter().releaseGL();
+
+        // logger.warn("Chart.add binded resource with box " + drawable.getBounds());
+
+      } else {
+        logger.warn(drawable + " will be initialized later since the view is not initialized yet. "
+            + "Calling chart.getView().getBounds() won't return anything relevant until chart.open() gets called");
+      }
+
+      // getView().initResources(); // invoke loading GL binded resource in case this drawable
+      // requires it
+
+    }
+
+    // 3. Update the bounds ONLY AFTER vbo have been mounted, since their bounds are only
+    // available at that time
+    if (updateView) {
+      getView().updateBounds();
+    }
+
+    updateLightsOnCameraPositions();
     return this;
   }
 
+  /**
+   * Add a drawable by first evaluating its rendering performance onscreen from worse
+   * ({@link LODSetting.Bounds#ON} to most good looking rendering. This method is useful when using
+   * facing low performance rendering, e.g. because one chose the fallback EmulGL renderer over
+   * native.
+   * 
+   * <h2>Using dynamic level of details</h2>
+   * 
+   * This requires to have a properly configured {@link AdaptiveMouseController} as shown below
+   * 
+   * <pre>
+   * <code>
+   * chart.add(myDrawable, new LODCandidates());
+   * 
+   * AdaptiveRenderingPolicy policy = new AdaptiveRenderingPolicy();
+   * policy.optimizeForRenderingTimeLargerThan = 80;// ms
+   * policy.optimizeByPerformanceKnowledge = true;
+   * 
+   * EmulGLSkin skin = EmulGLSkin.on(chart);
+   * skin.getMouse().setPolicy(policy);
+   * </code>
+   * </pre>
+   * 
+   * <h2>Algorithm</h2>
+   * 
+   * Each Level of Detail configuration is described by a {@link LODSetting}. All {@link LODSetting}
+   * are ranked in a {@link LODCandidates} instance that indicates which are the most good looking
+   * settings. We define the best with lowest ID, the worse with highest ID.
+   * 
+   * <h3>Training</h3> LOD are evaluated in reverse order, as soon as the drawable is added to the
+   * chart. Evaluation store a rendering time for each {@link LODSetting}
+   * <ul>
+   * <li>LOD 3 took 40ms
+   * <li>LOD 2 took 60ms
+   * <li>LOD 1 took 80ms
+   * <li>LOD 0 took 100ms
+   * </ul>
+   * 
+   * <h3>Applying</h3>
+   * 
+   * As soon as the mouse start dragging camera, the mouse controller will seek an acceptable LOD to
+   * reach the target
+   * <ul>
+   * <li>LOD 0 took 100ms // rejected
+   * <li>LOD 1 took 80ms // rejected
+   * <li>LOD 2 took 60ms // selected
+   * <li>LOD 3 took 40ms // ignored
+   * </ul>
+   * Now if the target time is 30ms and none match the setting, then the fastest configuration is
+   * applied
+   * <ul>
+   * <li>LOD 0 took 100ms // rejected
+   * <li>LOD 1 took 80ms // rejected
+   * <li>LOD 2 took 60ms // rejected
+   * <li>LOD 3 took 40ms // selected : minimal rendering time above threshold
+   * </ul>
+   * 
+   * If no LOD configuration is given in the list, then nothing will be applied.
+   * 
+   * Note that a mouse is generated on the fly to register all rendering performance and later
+   * decide the best to use when rotating. The mouse is initialized after evaluating performance to
+   * ensure the user won't try to trigger rotations before evaluation finishes.
+   * 
+   * In addition to call this method, one should enable the mouse policy allowing to use these
+   * performance evaluations.
+   * 
+   * @param drawable
+   * @return
+   */
+  public Chart add(Drawable drawable, LODCandidates candidates) {
+    add(drawable, true);
+
+    Wireframeable w = drawable.asWireframeable();
+
+    if (w != null) {
+      LODPerf perf = new LODPerf(candidates);
+
+      TicToc t = new TicToc();
+      for (LODSetting lodSetting : perf.getCandidates().getReverseRank()) {
+
+        // Do not evaluate bounding box rendering which is always short
+        // so we simply keep a low constant
+        if (lodSetting.isBoundsOnly()) {
+          perf.setScore(lodSetting, LOD_BOUNDS_ONLY_RENDER_TIME_MS);
+        }
+
+        // Evaluate other LOD config
+        else {
+          lodSetting.apply(w);
+
+          getQuality().setColorModel(lodSetting.getColorModel());
+
+          int trials = 3;
+
+          double[] values = new double[trials];
+          int k = 0;
+
+          // Evaluate tree times and keep the mean, unless
+          // we encounter a poor rendering time
+          for (int i = 0; i < trials; i++) {
+            t.tic();
+            render();
+            t.toc();
+            values[k++] = t.elapsedMilisecond();
+
+            // Skip full evaluation if rendering time is too high
+            if (values[i] > LOD_EVAL_MAX_EVAL_DURATION_MS) {
+              perf.setScore(lodSetting, values[i]);
+            }
+            logger.debug(lodSetting.getName() + " (" + i + ") took " + values[i] + "ms");
+          }
+
+          if (k == trials) {
+            perf.setScore(lodSetting, Statistics.median(values, true));
+          }
+        }
+      }
+
+      // Wait for the end of evaluation to add mouse.
+      ICameraMouseController mouse = addMouseCameraController();
+
+      mouse.setLODPerf(perf);
+    }
+    /*
+     * MouseListener m = (MouseListener)mouse; MouseMotionListener m2 = (MouseMotionListener)mouse;
+     * 
+     * int n = 500; int i = 20;
+     * 
+     * m.mousePressed(mouseEvent((Component)getCanvas(), i, i)); for (i = i+1; i < n; i++) {
+     * m2.mouseDragged(mouseEvent((Component)getCanvas(), i, i)); render(); }
+     * m.mouseReleased(mouseEvent((Component)getCanvas(), n, n));
+     */
+    // mouse.
+
+    // getCanvas().forceRepaint();
+    ((Component) getCanvas()).repaint();
+    ((Component) getCanvas()).repaint();
+
+    return this;
+  }
+
+  protected static MouseEvent mouseEvent(Component sourceCanvas, int x, int y) {
+    return new MouseEvent(sourceCanvas, 0, 0, 0, x, y, 100, 100, 1, false, 0);
+  }
+  
+
+  public void add(Serie2d serie) {
+    series.put(serie.getName(), serie);
+    
+    add(serie.getDrawable());
+  }
+
+  public void add(Collection<Serie2d> series) {
+    for (Serie2d serie : series) {
+      add(serie);
+    }
+  }
+
+  public void add(Map<String, Serie2d> series) {
+    this.series.putAll(series);
+  }
+  
+  public Serie2d getSerie(String name, Serie2d.Type type) {
+    Serie2d serie = null;
+    if (!series.keySet().contains(name)) {
+      serie = factory.newSerie(name, type);
+      add(serie);
+      series.put(name, serie);
+    } else {
+      serie = series.get(name);
+    }
+    return serie;
+  }
+
+
+  public Serie2d removeSerie(String name, Serie2d.Type type) {
+    Serie2d serie = getSerie(name, type);
+    if(serie!=null) {
+      remove(serie);
+    }
+    return serie;
+  }
+
+  public void remove(Serie2d serie) {
+    remove(serie.getDrawable());
+  }
 
   public void remove(Drawable drawable) {
     getScene().getGraph().remove(drawable);
@@ -405,7 +811,7 @@ public class Chart {
   public void remove(Drawable drawable, boolean updateViews) {
     getScene().getGraph().remove(drawable, updateViews);
   }
-  
+
   public void remove(List<? extends Drawable> drawables) {
     for (Drawable drawable : drawables) {
       remove(drawable, false);
@@ -415,10 +821,44 @@ public class Chart {
 
   /* ADDING LIGHTS */
 
+
+  /**
+   * Add a light at the given position, using the {@link Light#DEFAULT_COLOR} for the three coloring
+   * settings.
+   * 
+   * Warning : The default color being white, any polygon in pure RED, pure GREEN or pure BLUE will
+   * have the exact same color when using a light. See {@link Light} documentation for this, or
+   * change the light color or object color a bit.
+   */
   public Light addLight(Coord3d position) {
-    return addLight(position, Color.BLUE, new Color(0.8f, 0.8f, 0.8f), Color.WHITE, 1);
+    return addLight(position, Light.DEFAULT_COLOR.clone(), Light.DEFAULT_COLOR.clone(),
+        Light.DEFAULT_COLOR.clone());
   }
 
+  /**
+   * Add a light at the given position.
+   * 
+   * @param ambiant
+   * @param diffuse
+   * @param specular
+   * @return
+   */
+  public Light addLight(Coord3d position, Color ambiant, Color diffuse, Color specular) {
+    return addLight(position, ambiant, diffuse, specular, 1);
+  }
+
+  public Light addLight(Coord3d position, Color colorForAll) {
+    return addLight(position, colorForAll, colorForAll, colorForAll);
+  }
+
+  /**
+   * Add a light at the given position.
+   * 
+   * @param ambiant
+   * @param diffuse
+   * @param specular
+   * @return
+   */
   public Light addLight(Coord3d position, Color ambiant, Color diffuse, Color specular,
       float radius) {
     Light light = new Light();
@@ -430,6 +870,122 @@ public class Chart {
     getScene().add(light);
     return light;
   }
+
+  /**
+   * Add a light that is attached to camera, which is moved as soon as the viewpoint changes, using
+   * the {@link Light#DEFAULT_COLOR} for the three coloring settings.
+   * 
+   * Warning : The default color being white, any polygon in pure RED, pure GREEN or pure BLUE will
+   * have the exact same color when using a light. See {@link Light} documentation for this, or
+   * change the light color or object color a bit.
+   */
+  public Light addLightOnCamera() {
+    return addLightOnCamera(Light.DEFAULT_COLOR.clone());
+  }
+
+  public Light addLightOnCamera(Color colorForAll) {
+    return addLightOnCamera(colorForAll, colorForAll, colorForAll);
+  }
+
+  /**
+   * Add a light that is attached to camera, which is moved as soon as the viewpoint changes.
+   * 
+   * If this light was already created, the initial instance is returned, even if the color setting
+   * do not match.
+   * 
+   * @param ambiant
+   * @param diffuse
+   * @param specular
+   * @return
+   */
+  public Light addLightOnCamera(Color ambiant, Color diffuse, Color specular) {
+    if (lightOnCamera == null) {
+      Coord3d position = getView().getCamera().getEye();
+      lightOnCamera = addLight(position, ambiant, diffuse, specular);
+
+      getView().addViewPointChangedListener(new IViewPointChangedListener() {
+        @Override
+        public void viewPointChanged(ViewPointChangedEvent e) {
+          updateLightOnCameraPosition();
+        }
+      });
+    }
+
+    return lightOnCamera;
+  }
+
+  protected void updateLightOnCameraPosition() {
+    lightOnCamera.setPosition(getView().getCamera().getEye());
+  }
+
+
+  public Light[] addLightPairOnCamera() {
+    return addLightPairOnCamera(Light.DEFAULT_COLOR.clone());
+  }
+
+  public Light[] addLightPairOnCamera(Color colorForAll) {
+    return addLightPairOnCamera(colorForAll, colorForAll, colorForAll);
+  }
+
+  /**
+   * Add a light pair syncronized to camera. Top light is 45° above the camera, bottom light is 45°
+   * below the camera.
+   * 
+   * If these lights were already created, the initial instances are returned, even if the color
+   * setting do not match.
+   * 
+   * @param ambiant
+   * @param diffuse
+   * @param specular
+   * @return
+   */
+
+  public Light[] addLightPairOnCamera(Color ambiant, Color diffuse, Color specular) {
+    if (lightPairOnCamera == null) {
+      Coord3d viewCenter = getView().getCenter(); // cartesian
+      Coord3d viewPointPolar = getView().getViewPoint(); // polar coords
+      Coord3d lightPointUpPolar = viewPointPolar.add(0, (float) Math.PI / 2, 0); // polar coords
+      Coord3d lightPointDownPolar = viewPointPolar.add(0, -(float) Math.PI / 2, 0); // polar coords
+      Coord3d lightPointUp = lightPointUpPolar.cartesian().addSelf(viewCenter); // cartesian
+      Coord3d lightPointDown = lightPointDownPolar.cartesian().addSelf(viewCenter); // cartesian
+
+      Light lightUp = addLight(lightPointUp, ambiant, diffuse, specular);
+      Light lightDown = addLight(lightPointDown, ambiant, diffuse, specular);
+
+      lightPairOnCamera = new Light[2];
+      lightPairOnCamera[0] = lightUp;
+      lightPairOnCamera[1] = lightDown;
+
+      getView().addViewPointChangedListener(new IViewPointChangedListener() {
+        @Override
+        public void viewPointChanged(ViewPointChangedEvent e) {
+          updateLightPairOnCameraPosition();
+        }
+      });
+    }
+    return lightPairOnCamera;
+  }
+
+  protected void updateLightPairOnCameraPosition() {
+    Coord3d viewCenter = getView().getCenter(); // cartesian
+    Coord3d viewPointPolar = getView().getViewPoint(); // polar coords
+    Coord3d lightPointUpPolar = viewPointPolar.add(0, (float) Math.PI / 2, 0); // polar coords
+    Coord3d lightPointDownPolar = viewPointPolar.add(0, -(float) Math.PI / 2, 0); // polar
+                                                                                  // coords
+    Coord3d lightPointUp = lightPointUpPolar.cartesian().addSelf(viewCenter); // cartesian
+    Coord3d lightPointDown = lightPointDownPolar.cartesian().addSelf(viewCenter); // cartesian
+
+    lightPairOnCamera[0].setPosition(lightPointUp);
+    lightPairOnCamera[1].setPosition(lightPointDown);
+  }
+
+  protected void updateLightsOnCameraPositions() {
+    if (lightOnCamera != null)
+      updateLightOnCameraPosition();
+    if (lightPairOnCamera != null)
+      updateLightPairOnCameraPosition();
+  }
+
 
   /* SHORTCUTS */
 
@@ -510,7 +1066,7 @@ public class Chart {
     return view;
   }
 
-  public ChartScene getScene() {
+  public Scene getScene() {
     return scene;
   }
 
@@ -518,7 +1074,7 @@ public class Chart {
     return canvas;
   }
 
-  public IAxisLayout getAxisLayout() {
+  public AxisLayout getAxisLayout() {
     return getView().getAxis().getLayout();
   }
 
@@ -538,4 +1094,31 @@ public class Chart {
     this.quality = quality;
   }
 
+  /** Return the first available colorbar in the view layout, or null if none was created */
+  public IColorbarLegend getColorbar() {
+    ViewAndColorbarsLayout viewportLayout = (ViewAndColorbarsLayout) getView().getLayout();
+
+    if(viewportLayout.getChart()==null) {
+      viewportLayout.setChart(this);
+    }
+    
+    List<ILegend> legends = getLegends();
+    
+    /*if(legends.size()==0) {
+      view.getLayout().update(this);
+      legends = getLegends();
+    }*/
+    
+    for(ILegend legend : legends) {
+      if(legend instanceof IColorbarLegend) {
+        return (IColorbarLegend)legend;
+      }
+    }
+    return null;
+  }
+  
+  public List<ILegend> getLegends() {
+    ViewAndColorbarsLayout viewportLayout = (ViewAndColorbarsLayout) getView().getLayout();
+    return viewportLayout.getLegends();
+  }
 }

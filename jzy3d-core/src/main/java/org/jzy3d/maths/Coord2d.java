@@ -18,6 +18,9 @@ public class Coord2d implements Serializable {
   private static final long serialVersionUID = 3968428005200709871L;
   /** The origin is a Coord2d having value 0 for each dimension. */
   public static final Coord2d ORIGIN = new Coord2d(0.0f, 0.0f);
+  
+  public static final Coord2d IDENTITY = new Coord2d(1.0f, 1.0f);
+
   /** An invalid Coord2d has value NaN for each dimension. */
   public static final Coord2d INVALID = new Coord2d(Float.NaN, Float.NaN);
 
@@ -214,7 +217,7 @@ public class Coord2d implements Serializable {
 
   /**
    * Return a real polar value, with an angle in the range [0;2*PI]
-   * http://fr.wikipedia.org/wiki/Coordonn%C3%A9es_polaires
+   * https://en.wikipedia.org/wiki/Polar_coordinate_system
    */
   public Coord2d fullPolar() {
     double radius = Math.sqrt(x * x + y * y);

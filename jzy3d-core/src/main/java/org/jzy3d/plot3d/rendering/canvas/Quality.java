@@ -2,6 +2,7 @@ package org.jzy3d.plot3d.rendering.canvas;
 
 import java.awt.Canvas;
 import org.jzy3d.chart.IAnimator;
+import org.jzy3d.painters.ColorModel;
 import org.jzy3d.plot3d.rendering.ordering.AbstractOrderingStrategy;
 import org.jzy3d.plot3d.rendering.view.HiDPI;
 import org.jzy3d.plot3d.rendering.view.View;
@@ -129,9 +130,17 @@ public class Quality {
     return smoothLine;
   }
 
-  public Quality setSmoothEdge(boolean smoothLine) {
+  public Quality setSmoothLine(boolean smoothLine) {
     this.smoothLine = smoothLine;
     return this;
+  }
+
+  /**
+   * Use setSmoothLine instead
+   */
+  @Deprecated
+  public Quality setSmoothEdge(boolean smoothLine) {
+    return setSmoothLine(smoothLine);
   }
 
   public boolean isSmoothPoint() {
@@ -223,12 +232,32 @@ public class Quality {
   public Quality setHiDPI(HiDPI hidpi) {
     return setHiDPIEnabled(HiDPI.ON.equals(hidpi));
   }
+  
+  public ColorModel getColorModel() {
+    if(smoothColor) {
+      return ColorModel.SMOOTH;
+    }
+    else {
+      return ColorModel.FLAT;
+    }
 
+  }
+  
+  public void setColorModel(ColorModel model) {
+    if(ColorModel.SMOOTH.equals(model)) {
+      smoothColor = true;
+    }
+    else if(ColorModel.FLAT.equals(model)) {
+      smoothColor = false;
+    }
+  }
+  
   public Quality clone() {
     Quality copy = new Quality(depthActivated, alphaActivated, smoothColor, smoothPoint, smoothLine,
         smoothPolygon, disableDepthTestWhenAlpha);
     copy.isAnimated = isAnimated;
     copy.isAutoSwapBuffer = isAutoSwapBuffer;
+    copy.preserveViewportSize = preserveViewportSize;
     return copy;
   }
 

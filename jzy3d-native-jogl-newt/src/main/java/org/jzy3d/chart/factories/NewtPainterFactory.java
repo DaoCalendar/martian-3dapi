@@ -1,7 +1,8 @@
 package org.jzy3d.chart.factories;
 
 import java.util.Date;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jzy3d.bridge.awt.FrameAWT;
 import org.jzy3d.chart.Chart;
 import org.jzy3d.chart.controllers.keyboard.camera.ICameraKeyController;
@@ -30,7 +31,7 @@ import com.jogamp.opengl.GLCapabilities;
 
 public class NewtPainterFactory extends NativePainterFactory implements IPainterFactory {
   public static String SCREENSHOT_FOLDER = "./data/screenshots/";
-  static Logger logger = Logger.getLogger(NewtPainterFactory.class);
+  static Logger logger = LogManager.getLogger(NewtPainterFactory.class);
 
   public NewtPainterFactory() {
     super();
@@ -52,7 +53,7 @@ public class NewtPainterFactory extends NativePainterFactory implements IPainter
 
   /** Provide AWT Texture loading for screenshots */
   @Override
-  public Renderer3d newRenderer3D(View view, boolean traceGL, boolean debugGL) {
+  public Renderer3d newRenderer3D(View view) {
     return new AWTRenderer3d(view, traceGL, debugGL);
   }
 
